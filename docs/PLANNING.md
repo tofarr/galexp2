@@ -99,6 +99,10 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D7: tech-prereq enforcement lives in D5/P6, not D7.4 | Keeps D7.4 purely structural; UX prereq feedback still possible via UI |
 | 2026-06-05 | D7: per-instance modifiers (race traits, owner tech) applied at the consumer, not D7.5 | Keeps D7.5 pure per-design; trivially testable |
 | 2026-06-05 | D7: special catalog includes placeholder entries for v2 specials | Forward-compatible; v2 turns on real effects without catalog changes |
+| 2026-06-05 | D8: D8.2 reframed as "distance & range" (Euclidean warp; no warp lanes in v1) | Warp lanes deferred to v2 |
+| 2026-06-05 | D8: same-owner auto-merge happens in D8.4 (not a manual command); split is player-initiated | Keeps D9's contract simple — D9 only sees one fleet per side |
+| 2026-06-05 | D8: fleet warpRange is the min of ship ranges | Fleet moves as slow as its slowest ship |
+| 2026-06-05 | D8: random shuffling takes rng parameter (no Math.random) | Per Architecture Principle 1 |
 
 ## Open questions
 

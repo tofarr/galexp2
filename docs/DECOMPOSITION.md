@@ -135,6 +135,8 @@ Per-section doc: [`sections/D7-ship-design.md`](sections/D7-ship-design.md). Fiv
 - D8.4 Arrival & encounter detection — when a fleet arrives at a star, detect contact.
 - D8.5 Fleet merge & split.
 
+Per-section doc: [`sections/D8-fleet-movement.md`](sections/D8-fleet-movement.md). Four Quint files: `orders.qnt`, `movement.qnt`, `fleetOps.qnt`, `arrival.qnt`. D8.2 reframed as "distance & range" (Euclidean warp in v1; warp lanes deferred to v2). D8.4 enforces "one fleet per player-side at each star" before emitting Encounter events to D9 — D9 only ever sees pairwise encounters.
+
 ---
 
 ### Section D9 — Space Combat Resolution
