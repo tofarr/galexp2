@@ -120,6 +120,8 @@ This is small but central. The real work happens in D5–D12; D4 just calls them
 - D7.4 Design validation — rules of placement (e.g., small weapons can't go on huge hulls).
 - D7.5 Stat computation — attack/defense/computer/speed/hp from components.
 
+Per-section doc: [`sections/D7-ship-design.md`](sections/D7-ship-design.md). Five Quint files: `hulls.qnt`, `weapons.qnt`, `specials.qnt`, `designValidation.qnt`, `combatStats.qnt`. D7.4 is structural-only; tech-prereq enforcement lives in D5/P6. D7.5 is pure per-design; per-instance modifiers (race traits, owner tech) are applied at the consumer.
+
 ---
 
 ### Section D8 — Fleet & Movement
