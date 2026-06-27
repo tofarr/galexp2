@@ -64,6 +64,8 @@ Per-section doc: [`sections/D2-galaxy-generation.md`](sections/D2-galaxy-generat
 - D3.3 Race-specific tech affinities — e.g., Meklons get +1 to Computers.
 - D3.4 Diplomacy disposition — race-to-race starting relations and proclivities.
 
+Per-section doc: [`sections/D3-races-and-traits.md`](sections/D3-races-and-traits.md). Adds **D3.5 homeworld assignment** (receives candidate list from D2.6). Four Quint files: `raceCatalog.qnt` (D3.1+D3.3+D3.4), `traits.qnt` (D3.2 modifier system), `homeworld.qnt` (D3.5), `races.qnt` (public API).
+
 ---
 
 ### Section D4 — Turn Cycle (the master `step`)

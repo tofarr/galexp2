@@ -1,0 +1,270 @@
+# Section D3 — Races & Traits
+
+D3 defines the ten playable races, the trait system that gives them mechanical personality, and the rules that turn "abstract races plus a galaxy" into "each race owns a homeworld."
+
+## Section contract
+
+> **Races & Traits**: defines the 10 races and how their traits modify game rules. Pure data + small modifier functions. D3.5 (added when D2 was decomposed) takes the candidate-homeworld list produced by D2 and assigns each race a homeworld.
+
+**Owns**:
+- The race catalog: 10 races with names, traits, portraits, homeworld preferences.
+- The trait modifier system: a small set of `Modifier` values per trait, with a uniform apply API.
+- Race-to-race diplomacy dispositions (starting relations).
+- Race-specific tech affinities (per-tree research bonuses).
+- Homeworld assignment from D2's candidate pool.
+
+**Does not own**:
+- Galaxy generation (D2) — D3 only consumes the candidate list.
+- AI decision-making (D13) — D3 provides `aiPersonalityHints` but doesn't run AI.
+- Government types (deferred to v2 — see "Open questions").
+- Custom race designer (deferred to v2).
+- Race-specific ship hulls (deferred to v2 — v1 uses universal hulls).
+
+## Top-level chunks
+
+The DECOMPOSITION.md entry lists D3.1–D3.4. We add **D3.5 (homeworld assignment)** to receive the candidate list D2.6 produces:
+
+- **D3.1 Race catalog** — the 10 races, base stats, portraits (asset ref).
+- **D3.2 Trait modifier system** — how a `Race.traits[]` array changes formulas elsewhere.
+- **D3.3 Race-specific tech affinities** — e.g., Meklons get +1 to Computers.
+- **D3.4 Diplomacy disposition** — race-to-race starting relations and proclivities.
+- **D3.5 Homeworld assignment** — pick one D2 candidate per race, using race homeworld preferences.
+
+## Recursive decomposition
+
+Each top-level chunk is already small enough. The sub-decomposition is mostly about clarifying the trait modifier interface, because that's what every consumer (D5/D9/D10/D11) will read.
+
+### D3.1 → Race catalog
+
+Ten hardcoded races from the original MoO:
+
+| Race | Traits | Homeworld preference | Tech affinity |
+|---|---|---|---|
+| Humans | Skilled, Versatile | Terrestrial | none |
+| Alkari | Flight, Warrior | Arid | Propulsion |
+| Bulrathi | Militaristic, Subterranean | Barren | Construction |
+| Darloks | Stealthy, Subterranean | Arid/Tundra | Computer |
+| Gnolams | Cybernetic, Tolerant | Terrestrial | none |
+| Klackons | Repulsive, Industrial | Volcanic | Construction |
+| Meklons | Cybernetic, Creative | Oceanic | Computer |
+| Mrrshan | Warrior, Honorbound | Tundra | Weapons |
+| Psilons | Telepathic, Erudite | Oceanic | Weapons +1 (extra) |
+| Sakkra | Subterranean, Lithovore | Volcanic | none |
+
+(Trait and affinity names are placeholders; final names come from the original MoO names when we get to the Quint spec. The structure — each race has 2 traits + homeworld type + optional affinity — is what matters here.)
+
+Each race entry in the catalog is a `Race` record (defined in D1.2):
+
+```
+type Race = {
+  id: RaceId,
+  name: string,
+  traits: Set<Trait>,
+  homeworldPreference: PlanetType,
+  techAffinities: Map<TechTree, int>,   // bonus research points per turn
+  aiPersonalityHints: Set<AiPersonalityTrait>,   // e.g., {Aggressive, Expansionist}
+  portraitRef: string,                  // asset reference, not loaded by D3
+}
+```
+
+The catalog itself is a `Map<RaceId, Race>` constant in the Quint spec. v1 uses the 10 hardcoded races only.
+
+### D3.2 → Trait modifier system
+
+This is the most-touched D3 chunk because it exports a uniform API that every formula in D5/D9/D10/D11 reads.
+
+A `Modifier` is a typed effect on a specific formula:
+
+```
+type Modifier =
+  | FoodProduction(float)        // multiplier: 1.20 = +20%
+  | IndustryProduction(float)
+  | ResearchProduction(float)
+  | GroundCombat(int)            // flat bonus to attack/defense rolls
+  | ShipAttack(int)
+  | ShipDefense(int)
+  | ShipSpeed(int)
+  | ColonizationSpeed(float)
+  | MaxColonies(int)
+  | Diplomacy(int)               // flat bonus to relation changes
+  | SpyDetection(float)          // multiplier on detection chance
+  | TradeIncome(float)
+  | ...                           // extensible; new modifiers added as needed
+```
+
+Each `Trait` value has a fixed list of modifiers, defined once in the spec:
+
+```
+traitModifiers(HyperExpansion) = { ColonizationSpeed(1.50), MaxColonies(2) }
+traitModifiers(Militaristic)   = { GroundCombat(2), ShipAttack(1) }
+traitModifiers(Toltec)         = { Diplomacy(2) }
+traitModifiers(Cybernetic)     = { ResearchProduction(1.20), ShipDefense(1) }
+... // ~16 traits total
+```
+
+Consumers sum the modifiers from all of a race's traits:
+
+```
+totalModifiers(race) = fold(mergeModifier, traitModifiers(t) for t in race.traits)
+```
+
+And then apply them where the formula lives:
+
+```
+// in D5 (economy)
+food = baseFood * totalModifiers(race).foodProduction
+```
+
+Modeling decisions (locked in for v1):
+- Modifiers are **summed, not multiplied**. Two `+1 ShipAttack` traits give `+2`, not `+1×1=+1`. Simpler reasoning; matches MoO's behavior.
+- Each trait is a **named constant**, not a numerical code. Tests read `traitModifiers(HyperExpansion)` directly.
+- Modifiers form an **open ADT**. New modifier kinds are added as we discover we need them; existing consumers don't need to change.
+- The `Modifier` ADT is defined in D3.2 and imported by every consumer. **D3.2 is the single source of truth** for what modifiers exist.
+
+### D3.3 → Race-specific tech affinities
+
+Each race gets a per-tree research bonus. Implementation:
+
+```
+techAffinity(race: Race, tree: TechTree): int
+```
+
+Defaults to 0 for unlisted trees. Examples (from the catalog table):
+
+```
+techAffinity(Meklons,  Computer)    = +2
+techAffinity(Psilons,  Weapons)     = +2
+techAffinity(Psilons,  Shields)     = +1
+techAffinity(Bulrathi, Construction) = +2
+```
+
+This is consumed by D6 (research) when computing per-turn research points.
+
+A possible v2 simplification: collapse D3.3 into D3.2 by treating affinities as `ResearchProduction(tree, +N)` modifiers. We don't do that in v1 because affinities are race-level (one per race per tree), not trait-level (any race can theoretically pick the Cybernetic trait), and the consumption site (D6) is cleaner with a direct function.
+
+### D3.4 → Diplomacy disposition
+
+Two pieces:
+
+1. **Per-race pair starting relation**. Each race has a `startingRelation(raceA, raceB): int` value in `[-20, +20]`. MoO defaults: Meklons and Darloks start unfriendly with everyone; Psilons start friendly; most pairs start neutral.
+
+2. **Race-level diplomacy proclivity** (an enum). Used by the AI to weight its decisions in D13:
+   - `Aggressive` — prefers war, demands tribute.
+   - `Diplomatic` — prefers treaties, votes for council.
+   - `Expansionist` — colonizes aggressively.
+   - `Technologist` — trades for tech, less war.
+   - `Honorable` — keeps treaties strictly; punishes betrayal heavily.
+   - `Ruthless` — breaks treaties when convenient.
+
+Each race has 1–2 proclivities. Combined with the per-player AI personality (chosen at game start), this gives a 2-axis personality system.
+
+### D3.5 → Homeworld assignment
+
+Given:
+- A `Galaxy` from D2 with `candidates: PlanetId[]` tagged as candidate homeworlds.
+- A list of `Race` to place (one per player).
+
+Produce: a `Map<RaceId, PlanetId>` mapping each race to one candidate, where each candidate is used at most once.
+
+Algorithm:
+1. **Score each (race, candidate) pair** with a preference function:
+   ```
+   score(race, planet) =
+       matchScore(race.homeworldPreference, planet.type)     // 0/1/2 (perfect/close/wrong)
+     + sizeBonus(planet.size)                               // 0..2
+     + richnessBonus(planet.richness)                       // 0..2
+   ```
+   `matchScore` is a small lookup table; e.g., Humans prefer Terrestrial (perfect), accept Oceanic or Arid (close), reject others (wrong).
+2. **Greedy assignment**: sort races by "most picky" first (smallest candidate pool with positive scores), and assign each to its highest-scoring unused candidate.
+3. **Fallback**: if a race has zero positive-scoring candidates (very unlucky galaxy), assign to the candidate with the highest non-negative score. This guarantees every race gets a homeworld.
+
+Output: `Map<RaceId, PlanetId>` plus a list of "warnings" (e.g., `"Bulrathi placed on a Terrestrial planet (no Volcanic candidates)"`) that become `Event` entries in `GameState`.
+
+D3.5 is the only D3 chunk that touches D2. D4 (Turn Cycle init) calls D3.5 at game start.
+
+## Dependency graph (within D3)
+
+```
+D3.1 (catalog)
+  ↓
+D3.2 (traits)        ← reads traits from D3.1's race records
+D3.3 (affinities)    ← reads from D3.1
+D3.4 (dispositions)  ← reads from D3.1
+  ↓
+D3.5 (homeworld)     ← consumes D3.1 (preferences) and D2.6 (candidates)
+```
+
+D3.1 is the root of D3. D3.2/D3.3/D3.4 are independent leaves that all read from D3.1. D3.5 sits on top of D3.1 and D2.
+
+## Cross-section dependencies
+
+| Depends on | What we need | Where it lives |
+|---|---|---|
+| D1 Core Types | `Race`, `Trait`, `PlanetType`, `Planet`, `PlanetId`, `RaceId`, `AiPersonalityTrait`, `Modifier` | D1.1, D1.2 |
+| D2 Galaxy Generation | `Galaxy`, `Planet.candidateHomeworld`, `PlanetId` candidates list | D2.6 |
+
+D3 has no other dependencies.
+
+| Section | What it imports from D3 |
+|---|---|
+| D4 Turn Cycle | `Race`, `homeworldAssignment()` — used during game init |
+| D5 Economy | `totalModifiers(race)` for production modifiers |
+| D6 Research | `techAffinity(race, tree)` |
+| D9 Space Combat | `totalModifiers(race)` for ship attack/defense/speed |
+| D10 Ground Combat | `totalModifiers(race)` for ground combat |
+| D11 Diplomacy | `startingRelation(raceA, raceB)` for initial state |
+| D13 AI | `aiPersonalityHints` for default AI behavior |
+| P2 Race selection | `Race` catalog (read-only) |
+| P6 Ship design | `race.limits` (if any) — v1: none |
+| P7 Diplomacy | `Race` portrait + relation |
+| P12 Council | `Race` portrait + vote weight (optional) |
+
+D3 is the second-most-imported section after D1.
+
+## Quint-spec-sized leaves (the actual implementation units)
+
+Four Quint files, plus the catalog data lives in one of them:
+
+| Quint file | Implements | TS module | Approx. lines |
+|---|---|---|---|
+| `specs/races/raceCatalog.qnt` | D3.1 + D3.3 + D3.4 | `src/domain/races/raceCatalog.ts` | ~180 (mostly catalog data) |
+| `specs/races/traits.qnt` | D3.2 (modifier system) | `src/domain/races/traits.ts` | ~200 |
+| `specs/races/homeworld.qnt` | D3.5 (homeworld assignment) | `src/domain/races/homeworld.ts` | ~120 |
+| `specs/races/races.qnt` | top-level public API: `totalModifiers`, `techAffinity`, `startingRelation` re-exports | `src/domain/races/index.ts` | ~50 |
+
+Total ~550 lines of Quint. The catalog is the only chunk that's "data-heavy" (~100 lines for the 10 races); the rest is logic.
+
+The TypeScript catalog is a JSON file (`src/domain/races/raceData.json`) loaded at module init time. Trait modifiers are TypeScript constants exported from `traits.ts`.
+
+## What "simple v1" looks like for D3
+
+- **Fixed 10 races**, no custom race designer.
+- **Fixed trait list** (~16 traits, each race has 2). No point-buy, no random traits.
+- **Summed modifiers**, not multiplied. Easier to reason about; matches MoO behavior.
+- **Greedy homeworld assignment**, no Hungarian algorithm. MoO's assignment was greedy too; nothing to gain from optimal matching when races are roughly equally matched.
+- **No government types**. MoO had government types (Democracy, etc.) with their own bonuses; v1 omits them entirely. Add as a separate chunk in v2.
+- **No race-specific ship hulls**. MoO had a few race-specific hulls (e.g., the Gnolams' unique frigate). v1 uses universal hulls from D7. Add race-specific hulls in v2.
+
+## Resolved decisions for D3
+
+- **Modifiers are summed, not multiplied.** Simpler; matches MoO.
+- **D3.5 owns homeworld assignment.** Per the D2 split; D2 produces candidates, D3 assigns.
+- **Greedy assignment, with fallback to "best available."** Guarantees every race gets a homeworld.
+- **No government types in v1.** Deferred.
+- **No custom races in v1.** Deferred.
+- **No race-specific hulls in v1.** Deferred.
+- **Modifier ADT is open.** Adding new modifier kinds is a one-place change in D3.2.
+
+## Open questions for D3
+
+- **Trait list scope**: how many traits for v1? Original MoO had ~16. Proposing 16 for v1, with the option to slim down if we want a faster first playable. **Default to 16.** Decide on the exact list when we get to the Quint spec.
+- **AI personality: race hint vs. player choice.** Both. Race gives a default; player picks the actual AI personality at game start. Already locked in D3.4 above.
+- **Diplomacy disposition values**: what are the exact per-pair starting relations for the 10 races? Propose using MoO defaults as a starting point and adjusting during playtesting. **Defer to spec phase.**
+
+No open questions block starting the D3 Quint spec.
+
+## Next step
+
+Per [`ROADMAP.md`](../ROADMAP.md), the next commit is **D7 Ship Design & Combat Stats** (D4 is skipped for now because it's small and central — better to do it after the sections it calls into are decomposed).
+
+D3's Quint spec can be written **now** without waiting for D4/D5/etc. — D3's only dependencies are D1 (done) and D2 (done).

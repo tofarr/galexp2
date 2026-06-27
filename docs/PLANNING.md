@@ -93,6 +93,9 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D9: no boarding in v1 | Reserved as D9.7 if revisited |
 | 2026-06-05 | D9: no stellar converters / planet busters in v1 | Optional v2 chunks |
 | 2026-06-05 | D2: D2.5 selects candidate homeworlds only; final assignment is D3.5 | Keeps D2 focused on world generation; D3 brings preference logic |
+| 2026-06-05 | D3: trait modifiers are summed, not multiplied | Simpler reasoning; matches MoO behavior |
+| 2026-06-05 | D3: modifiers form an open ADT (new kinds addable without changing consumers) | Lets us discover needed modifiers as we implement |
+| 2026-06-05 | D3: no government types in v1; no custom races in v1; no race-specific hulls in v1 | All deferred to v2 |
 
 ## Open questions
 
