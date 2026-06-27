@@ -111,6 +111,8 @@ Per-section doc: [`sections/D5-economy.md`](sections/D5-economy.md). Seven Quint
 - D6.4 Tech acquisition events — when a tech completes, who learns it, who can benefit from trade.
 - D6.5 Tech trade & gifts — pre-requisite for diplomacy.
 
+Per-section doc: [`sections/D6-research.md`](sections/D6-research.md). Three Quint files: `techCatalog.qnt` (D6.1 + D6.2), `research.qnt` (D6.3 + D6.4), `techTrade.qnt` (D6.5). 6 tech trees × 6 levels = 36 techs in v1. Single active research per player; switching loses accumulated points. Prereq-strict trade. `TechEffect` is an open ADT (unlocks, stat bonuses, production bonuses, special-effect bonuses).
+
 ---
 
 ### Section D7 — Ship Design & Combat Stats
