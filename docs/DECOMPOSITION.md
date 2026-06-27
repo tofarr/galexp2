@@ -235,6 +235,8 @@ Per-section doc: [`sections/D13-ai-decisions.md`](sections/D13-ai-decisions.md).
 - D14.4 Score / time victory — at turn N, highest score wins.
 - D14.5 End-game state — rankings, final stats, post-game screen.
 
+Per-section doc: [`sections/D14-victory.md`](sections/D14-victory.md). Two Quint files: `victoryConditions.qnt` (D14.1-D14.4 the four checks), `endGame.qnt` (D14.5 final stats). Four victory kinds: Conquest (80% planets + no rival above 10%, OR last empire standing), Tech (6 key techs at top of each tree), Diplomatic (read from D11.5 GalacticEmperorVictoryEvent), Score (at MAX_TURN=200, highest score wins). Score formula: planets + 5×techs + 0.001×pop + 0.1×fleet + 0.001×treasury.
+
 ---
 
 ## Layer 1 — Application (state, persistence, orchestration)

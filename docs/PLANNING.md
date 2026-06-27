@@ -136,6 +136,12 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D13: AIs run sequentially, ordered by threat | Parallelism deferred to v2 |
 | 2026-06-05 | D13: AIMemory persists across turns (per-player) | Stores grudges, threats, target stars |
 | 2026-06-05 | D13: all AIs use shared decision logic (D13.1) | Strategies are just weight overrides |
+| 2026-06-05 | D14: four victory kinds (Conquest, Tech, Diplomatic, Score) | MoO-style mix |
+| 2026-06-05 | D14: conquest threshold 80% planets + no rival above 10% OR last empire standing | Two conditions for robustness |
+| 2026-06-05 | D14: tech victory = 6 key techs (top of each tree) | Simpler than specific named techs |
+| 2026-06-05 | D14: MAX_TURN = 200 for score/time victory | v1 default; tunable |
+| 2026-06-05 | D14: ties in score = draw (no winner) | v1 simplicity |
+| 2026-06-05 | D-layer complete (D1-D14 all decomposed) | Phase 1 next moves to A-layer |
 | 2026-06-05 | D5: revolt events are emitted but don't flip ownership in v1 | Full revolt mechanics deferred to v2 |
 
 ## Open questions
