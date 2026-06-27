@@ -220,6 +220,8 @@ Per-section doc: [`sections/D12-espionage.md`](sections/D12-espionage.md). Two Q
 - D13.6 Strategy: Balanced — weighted blend of above.
 - D13.7 Per-turn AI evaluation pipeline — when each AI runs, in what order.
 
+Per-section doc: [`sections/D13-ai-decisions.md`](sections/D13-ai-decisions.md). Three Quint files: `aiCommon.qnt` (D13.1 shared scaffolding), `aiStrategies.qnt` (D13.2-D13.6 strategies as personality presets), `aiPipeline.qnt` (D13.7). Strategies are mostly weight vectors + a few custom heuristics; heavy lifting happens once in shared code. No search/minimax in v1 — heuristic scoring only. AIs run sequentially, ordered by threat. `AIMemory` persists across turns. Five strategies: Aggressive, Builder, Technologist, Diplomat, Balanced.
+
 ---
 
 ### Section D14 — Victory Conditions

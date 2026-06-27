@@ -131,6 +131,11 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D12: spy skill caps at 10 | Max effectiveness; tune during playtesting |
 | 2026-06-05 | D12: detected spy is captured (no escape mechanic) | v1 simplicity |
 | 2026-06-05 | D12: AssassinateLeader is a stub event in v1 (no leader system) | Will affect governance/AI when leaders land |
+| 2026-06-05 | D13: 5 strategies, each a weight preset + custom heuristics | Strategies are personality presets, not full search AIs |
+| 2026-06-05 | D13: no search/minimax in v1 (heuristic scoring only) | v2 could add real game-tree search |
+| 2026-06-05 | D13: AIs run sequentially, ordered by threat | Parallelism deferred to v2 |
+| 2026-06-05 | D13: AIMemory persists across turns (per-player) | Stores grudges, threats, target stars |
+| 2026-06-05 | D13: all AIs use shared decision logic (D13.1) | Strategies are just weight overrides |
 | 2026-06-05 | D5: revolt events are emitted but don't flip ownership in v1 | Full revolt mechanics deferred to v2 |
 
 ## Open questions
