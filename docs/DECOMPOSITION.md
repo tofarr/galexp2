@@ -172,6 +172,8 @@ This section is large enough to warrant its own detailed decomposition doc — s
 - D10.4 Pillage & collateral damage.
 - D10.5 Outcome — conquest, repelled, treaty forced.
 
+Per-section doc: [`sections/D10-ground-combat.md`](sections/D10-ground-combat.md). Three Quint files: `troops.qnt` (D10.1), `groundRounds.qnt` (D10.2 + D10.3 combat rounds + surrender), `outcome.qnt` (D10.4 + D10.5 pillage + final outcome). v1 omits bombardment (only invasion) and forced treaties from conquest (deferred to v2 — D11/D14). Simple casualty formula `max(1, attack/defense)` per round. `MAX_GROUND_ROUNDS = 30` prevents stalemates. Subterranean trait gives "no surrender until fully eliminated". Pillage damages but doesn't destroy buildings (auto-repair next turn).
+
 ---
 
 ### Section D11 — Diplomacy

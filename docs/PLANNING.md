@@ -115,6 +115,11 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D6: single active research per player; switching loses accumulated points | Matches MoO behavior; v2 could allow carry-over |
 | 2026-06-05 | D6: prereq-strict trade (recipients must have own prereqs) | No "gift without prereq" in v1 |
 | 2026-06-05 | D6: TechEffect ADT is open (unlocks, stat bonuses, production bonuses, special bonuses) | Same principle as D3.2 Modifier ADT; new effect kinds addable without consumer changes |
+| 2026-06-05 | D10: no bombardment in v1 (only invasion) | Bombardment deferred to v2 |
+| 2026-06-05 | D10: no forced treaties from conquest in v1 | Forced-treaty mechanic deferred to v2 (would live in D11 or D14) |
+| 2026-06-05 | D10: MAX_GROUND_ROUNDS = 30 prevents stalemates | After 30 rounds, draw; invader must withdraw |
+| 2026-06-05 | D10: Subterranean trait gives "no surrender until fully eliminated" | Defensive trait bonus |
+| 2026-06-05 | D10: pillage damages but doesn't destroy buildings (auto-repair next turn) | Buildings recover without player intervention |
 | 2026-06-05 | D5: revolt events are emitted but don't flip ownership in v1 | Full revolt mechanics deferred to v2 |
 
 ## Open questions
