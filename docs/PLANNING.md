@@ -111,10 +111,10 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D5: one tax slider (income vs research split); default 30 | v1 simplicity |
 | 2026-06-05 | D5: debt reduces morale rather than capping treasury at zero | Players can go negative; v1 doesn't enforce solvency |
 | 2026-06-05 | D5: Lithovore ignores food (no starvation) | Trait interaction lives in D3 modifiers, applied in D5.1 |
-| 2025-06-05 | D6: 6 tech trees × 6 levels = 36 techs in v1 | Roughly MoO's shape; variety without slog |
-| 2025-06-05 | D6: single active research per player; switching loses accumulated points | Matches MoO behavior; v2 could allow carry-over |
-| 2025-06-05 | D6: prereq-strict trade (recipients must have own prereqs) | No "gift without prereq" in v1 |
-| 2025-06-05 | D6: TechEffect ADT is open (unlocks, stat bonuses, production bonuses, special bonuses) | Same principle as D3.2 Modifier ADT; new effect kinds addable without consumer changes |
+| 2026-06-05 | D6: 6 tech trees × 6 levels = 36 techs in v1 | Roughly MoO's shape; variety without slog |
+| 2026-06-05 | D6: single active research per player; switching loses accumulated points | Matches MoO behavior; v2 could allow carry-over |
+| 2026-06-05 | D6: prereq-strict trade (recipients must have own prereqs) | No "gift without prereq" in v1 |
+| 2026-06-05 | D6: TechEffect ADT is open (unlocks, stat bonuses, production bonuses, special bonuses) | Same principle as D3.2 Modifier ADT; new effect kinds addable without consumer changes |
 | 2026-06-05 | D5: revolt events are emitted but don't flip ownership in v1 | Full revolt mechanics deferred to v2 |
 
 ## Open questions
