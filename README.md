@@ -50,4 +50,4 @@ src/                   ← TypeScript implementation (created later)
 
 ## Contributing / Next steps
 
-The current focus is recursive decomposition of the domain sections. See [`docs/PLANNING.md`](docs/PLANNING.md) for the active task list and decisions in progress.
+The current focus is recursive decomposition of the domain sections, one section per commit. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the ordered list and [`docs/PLANNING.md`](docs/PLANNING.md) for the active decisions.

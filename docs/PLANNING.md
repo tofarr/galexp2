@@ -13,7 +13,7 @@ Status: **scope decisions complete, decomposition in progress**.
 - Top-level decomposition of the game → [`DECOMPOSITION.md`](DECOMPOSITION.md) ✅ done
 - Recursive decomposition into manageable chunks → in progress (starts with D9)
 - Testing strategy → [`TESTING.md`](TESTING.md) ✅ done
-- Phasing roadmap → [`ROADMAP.md`](ROADMAP.md) (pending)
+- Phasing roadmap → [`ROADMAP.md`](ROADMAP.md)
 
 Deliverables of this phase:
 1. A single agreed-upon tech stack. ✅
