@@ -79,6 +79,8 @@ Per-section doc: [`sections/D3-races-and-traits.md`](sections/D3-races-and-trait
 
 This is small but central. The real work happens in D5–D12; D4 just calls them in order.
 
+Per-section doc: [`sections/D4-turn-cycle.md`](sections/D4-turn-cycle.md). One Quint file (`turnCycle.qnt`) since D4 is intentionally small. Phase order locked in: init → economy → research → production → fleetMovement → contactResolution → combatResolution → espionage → diplomacy → victoryCheck → endTurn. Espionage runs before diplomacy so spy results can inform this turn's offers. Victory check before end-of-turn cleanup so a win ends mid-step.
+
 ---
 
 ### Section D5 — Economy
