@@ -120,6 +120,12 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D10: MAX_GROUND_ROUNDS = 30 prevents stalemates | After 30 rounds, draw; invader must withdraw |
 | 2026-06-05 | D10: Subterranean trait gives "no surrender until fully eliminated" | Defensive trait bonus |
 | 2026-06-05 | D10: pillage damages but doesn't destroy buildings (auto-repair next turn) | Buildings recover without player intervention |
+| 2026-06-05 | D11: relation score drifts toward 0 without contact (1/turn after 10 turns of no contact) | Cooling relations are realistic |
+| 2026-06-05 | D11: wars end by peace treaty or conquest (no automatic surrender) | Players must negotiate; v2 could add surrender |
+| 2026-06-05 | D11: Council every 25 turns, simple majority election | MoO-like cadence; v2 could add denouncement |
+| 2026-06-05 | D11: trade routes created manually by player command | No auto-trade; v2 could add AI-suggested routes |
+| 2026-06-05 | D11: subjugation is one-way in v1 (no liberation mechanic) | Simpler; vassals stay vassals |
+| 2026-06-05 | D11: NAP enables trade at reduced income | Trade Pact gives full income; NAP gives partial |
 | 2026-06-05 | D5: revolt events are emitted but don't flip ownership in v1 | Full revolt mechanics deferred to v2 |
 
 ## Open questions

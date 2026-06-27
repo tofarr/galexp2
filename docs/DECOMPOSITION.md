@@ -188,6 +188,8 @@ Per-section doc: [`sections/D10-ground-combat.md`](sections/D10-ground-combat.md
 - D11.5 Council / Galactic Emperor — vote accumulation, election.
 - D11.6 Trade — ongoing per-turn trade income.
 
+Per-section doc: [`sections/D11-diplomacy.md`](sections/D11-diplomacy.md). Four Quint files: `relationsAndTreaties.qnt` (D11.1 + D11.2), `offers.qnt` (D11.3 + D11.4), `council.qnt` (D11.5), `trade.qnt` (D11.6). Relation score -100..+100 drifts toward 0 without contact. Treaty kinds: NAP, Trade Pact, Alliance, Peace, Subjugation, Research Agreement. Council every 25 turns; simple majority election = victory. Trade routes manual (player command), per-turn income, broken on ownership change. v1 omits alliance denouncement at council and one-way subjugation (no liberation).
+
 ---
 
 ### Section D12 — Espionage
