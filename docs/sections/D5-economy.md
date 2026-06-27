@@ -52,16 +52,17 @@ Per-planet function: `applyPopulation(planet, race, food, morale, ctx) -> (plane
 
 Inputs:
 - `planet` — current population, maxPopulation, type, size.
-- `race` — for trait modifiers (e.g., Lithovore ignores food).
+- `race` — for trait modifiers (e.g., Lithovore ignores food, growth modifier).
 - `food` — from D5.2.
 - `morale` — from D5.6.
 
 Logic:
-- If `food >= 0`: population grows. Growth rate = `baseGrowth * (1 + morale/100) * race.growthMod`, capped at `planet.maxPopulation`.
+- If `food >= 0`: population grows. Growth rate = `baseGrowth * (1 + morale/100) * race.totalModifiers.growthMod`, capped at `planet.maxPopulation`.
 - If `food < 0` and race is Lithovore: no starvation (Lithovore eats minerals, not food). Emit `PopulationStableEvent`.
 - If `food < 0` (non-Lithovore): population starves. Loss rate = `|food| / 2`. Emit `StarvationEvent { planet, lostPopulation }`.
+- If `morale < 20` for several consecutive turns: emit `RevoltRiskEvent { planet, morale }`. v1: the event is logged only — ownership does not flip. (D5.6 just computes the morale value; D5.1 owns the threshold check and event emission.) v2 adds the actual ownership flip.
 
-Emits: `PopulationGrewEvent`, `StarvationEvent`, `PopulationStableEvent`.
+Emits: `PopulationGrewEvent`, `StarvationEvent`, `PopulationStableEvent`, `RevoltRiskEvent`.
 
 Pure per-planet; trivially testable.
 
@@ -70,11 +71,15 @@ Pure per-planet; trivially testable.
 Per-planet function: `foodProduction(planet, race, buildings, ctx) -> int`.
 
 ```
-foodProduction = Σ building.foodOutput
+foodProduction = Σ(building.baseEffect)            // sum across all buildings on the planet
+                   .filter(isFoodOutput)            // pattern-match the BuildingEffect ADT
+                   .value                           // extract the int
                  × planet.size (modest scaling)
                  × planet.type.agricultureBonus
                  × race.totalModifiers.foodProduction
 ```
+
+Where `isFoodOutput` and `value` are pattern-match helpers over the `BuildingEffect` ADT (D1.2). Race multipliers come from D3.2's `Modifier` ADT — these are distinct mechanisms and never overlap.
 
 If the planet has `Native` special (from D2), no farming is possible (natives reject it). Food production is 0 for `Native` planets.
 
@@ -85,7 +90,9 @@ Emits: optional `FoodProductionEvent { planet, amount }` (debug/telemetry; UI ca
 Per-planet function: `industryProduction(planet, race, buildings, morale, ctx) -> int`.
 
 ```
-industryProduction = Σ building.industryOutput
+industryProduction = Σ(building.baseEffect)
+                       .filter(isIndustryOutput)
+                       .value
                      × planet.size
                      × planet.type.industryBonus
                      × race.totalModifiers.industryProduction
@@ -116,16 +123,23 @@ The `currentResearch` field on `Player` is set by D6 (when the player picks what
 Per-player function: `netIncome(player, planets, grossResearch, ctx) -> (net, events)`.
 
 ```
-grossIncome = Σ planet.baseTaxIncome          // per-planet flat income
-            + tradeRoutes(player).income      // from D11 trade routes
-            + floor(player.grossResearch × (taxRate / 100))   // slider
+grossIncome = Σ planet.baseTaxIncome                       // per-planet flat income (BC_PER_TAX_POINT)
+            + Σ tradeRoutes(player).income                 // cached from D11.6 last turn
+            + floor(player.grossResearch × (taxRate / 100))  // slider
 
-maintenance = Σ planet.buildings.maintenance   // per-building upkeep
-            + Σ fleets(player).supplyCost      // from D7 hull.baseSupply
-            + Σ spies(player).upkeep           // per-spy flat cost
+maintenance = Σ(planet.buildings.baseEffect).filter(isMaintenance).value  // per-building upkeep (BuildingEffect.Maintenance — to be added if needed; v1: 0)
+            + Σ fleets(player).supplyCost                  // from D7 hull.baseSupply
+            + Σ spies(player).upkeep                       // per-spy flat cost
+            + subjugationTribute(player)                   // 10% of gross income to suzerain (D11)
 
 netIncome = grossIncome - maintenance
 ```
+
+**Trade income** is computed by D11.6 at end-of-turn and cached on `TradeRoute.income`. D5.5 reads the cached value. This means the *current* turn's economy sees *last* turn's trade income — acceptable because trade routes are static across turns in v1 (no auto-trade; routes are player-created).
+
+**Subjugation tribute** (D11): if player A is subjugated to player B, 10% of A's gross income is transferred to B each turn as a maintenance line. Mechanism: `subjugationTribute(player) = 0.10 × grossIncome(player)` if `player` has a suzerain.
+
+**Research agreement transfer** (D11): if A and B have a research agreement, the gross research each generates in D5.4 is split 50/50 between them after D6.3 has deducted the cost of any tech-acquired this turn. The transfer is applied before D5.5's net-income calculation, so it counts toward treasury on the receiving side and as a maintenance line on the paying side (so the total is conserved).
 
 Tax slider semantics:
 - `taxRate ∈ [0, 100]`. Default 30.
@@ -145,19 +159,19 @@ Per-planet function: `morale(planet, race, buildings, player, ctx) -> int`.
 baseMorale = 50   // neutral
 
 modifiers = sum([
-    race.totalModifiers.morale,                      // e.g., Subterranean +1
-    buildings.entertainmentBonus,
-    -warWeariness(player, planet),                   // 0..-30 if at war
-    -highTaxes(player.taxRate),                      // 0..-20 if taxRate > 60
-    -debtPenalty(player.treasury),                   // 0..-20 if treasury < 0
-    +homeworldBonus(planet, player),                 // +10 if this is the homeworld
-    +recentlyConquered(planet),                      // -20 if conquered last 5 turns (revolt risk)
+    race.totalModifiers.morale,                                       // flat bonus from race traits (D3.2)
+    Σ(planet.buildings.baseEffect).filter(isEntertainmentBonus).value, // building EntertainmentBonus effects (D1.2)
+    -warWeariness(player, planet),                                    // 0..-30 if at war
+    -highTaxes(player.taxRate),                                       // 0..-20 if taxRate > 60
+    -debtPenalty(player.treasury),                                    // 0..-20 if treasury < 0
+    +homeworldBonus(planet, player),                                  // +10 if this is the homeworld
+    +recentlyConquered(planet),                                       // -20 if conquered last 5 turns (revolt risk)
 ])
 
 morale = clamp(baseMorale + modifiers, 0, 100)
 ```
 
-If `morale < 20` for many turns, the colony may revolt (D5.1 emits `RevoltRiskEvent`; v1 logs the event but doesn't actually flip ownership — full revolt logic is v2).
+D5.6 *computes* the morale value. D5.1 *consumes* it: when `morale < 20` for several consecutive turns, D5.1 emits `RevoltRiskEvent`. (D5.6 itself emits no events.)
 
 Morale feeds back into D5.3 (industry production scaled by morale/100) and D5.1 (population growth scaled by morale).
 
@@ -253,7 +267,7 @@ We split D5.2 and D5.3 into one file because they share the per-planet productio
 - **Linear population growth** (no exponential, no logistic curve).
 - **Single-item queue per planet** (MoO matched this). v2 supports multi-item queues.
 - **One tax slider** (income vs research split). v2 adds sliders for "spy spending", "trade", etc.
-- **No revolt mechanics** in v1 — D5.6 emits `RevoltRiskEvent` for low morale, but ownership doesn't actually flip. v2 adds full revolt.
+- **No revolt mechanics** in v1 — D5.1 emits `RevoltRiskEvent` when morale is low, but ownership doesn't actually flip. v2 adds full revolt.
 - **No black-market / piracy income**. Trade routes only.
 - **Debt is a morale penalty**, not a treasury floor. Players can go negative.
 - **Native/Artifact planets resist industry** (50% cap) until colonized.
@@ -268,8 +282,11 @@ We split D5.2 and D5.3 into one file because they share the per-planet productio
 - **Native/Artifact planets have capped industry** until colonized.
 - **Morale feeds back into industry and population growth** (low morale = low output).
 - **D5.7 produces ships into a designated build fleet at the planet** (creates one if missing).
-- **Revolt events are emitted but don't flip ownership** in v1.
+- **Revolt events are emitted by D5.1** when morale is low; D5.6 just computes the morale value. Events are logged but don't flip ownership in v1.
 - **Lithovore ignores food** (no starvation, but no growth bonus either).
+- **Trade income is cached on `TradeRoute.income` by D11.6** at end of turn; D5.5 reads the previous turn's cached value.
+- **Subjugation tribute (10% of gross income to suzerain)** is applied as a maintenance line in D5.5.
+- **Research agreement transfers (50/50 split)** happen between D6.3 and D5.5 in the same turn.
 
 ## Open questions for D5
 

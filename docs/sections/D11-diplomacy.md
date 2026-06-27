@@ -63,7 +63,9 @@ relationScore(a, b) =
   + raceCompat(a.race, b.race)     // some races like/dislike each other (D3)
 ```
 
-**Score drifts over time** (every turn): if no contact for 10 turns, score drifts toward 0 (relations cool). If at peace and score < 0, score improves by 1 per turn (peace heals).
+The final score is `clamp(rawScore, -100, +100)`. Without the clamp, accumulated modifiers could push the score outside the documented range.
+
+**Score drifts over time** (every turn): if `state.turn - relation.lastContactTurn > 10`, the score drifts toward 0 at 1 point per turn starting at the 11th turn. If at peace and score < 0, score improves by 1 per turn (peace heals).
 
 Stored on `GameState.relations: Map<RelationKey, Relation>` where `RelationKey = (minPlayerId, maxPlayerId)` (canonicalized pair).
 
@@ -86,10 +88,10 @@ Each treaty has effects:
 - **TradePact**: enables `TradeRoute`; +5 relation.
 - **Alliance**: mutual defense obligation. If either is attacked, the other declares war on the aggressor automatically. +20 relation.
 - **PeaceTreaty**: ends war; restores AtPeace; -25 relation if forced (conquest-driven).
-- **Subjugation**: vassal pays 10% of gross income to suzerain; vassal follows suzerain in wars.
-- **ResearchAgreement**: each player gets 50% of the other's research progress.
+- **Subjugation**: vassal is automatically set to `AtWar` with any suzerain's enemy; vassal cannot independently declare war; vassal pays 10% of gross income to suzerain each turn (applied as a maintenance line in D5.5). v2 could add suzerain diplomacy on behalf of vassals.
+- **ResearchAgreement**: each player gets 50% of the other's *unspent* research. Transfer is applied as a maintenance line in D5.5 after D6.3 has deducted the cost of any tech-acquired this turn (so the total is conserved).
 
-**Subjugation**: v1 includes basic vassal mechanics. v2 could add suzerain diplomacy on behalf of vassals.
+**Subjugation**: v1 includes basic vassal mechanics with the above mechanical effects. v2 could add suzerain diplomacy on behalf of vassals and diplomatic-relation rules for subjugated races.
 
 ### D11.3 → Offer evaluation
 
@@ -140,17 +142,17 @@ For `DeclareWar`: unilateral; no acceptance needed. Just sets `warState = AtWar(
 
 ### D11.5 → Council / Galactic Emperor
 
-The Galactic Council meets every `COUNCIL_INTERVAL = 25` turns (from D1.1 constants). On council turn:
+The Galactic Council meets every `COUNCIL_INTERVAL = 25` turns (from D1.1 constants). The council turn is detected as `state.turn % COUNCIL_INTERVAL == 0` (turn 25, 50, 75, …). On council turn:
 
-1. Compute each player's `voteCount` based on `Player.score` (computed in D14):
+1. Compute each player's `voteCount` based on `state.score[player]` — the derived per-player score field on `GameState` (D1.3, D14.4). The score is recomputed once per turn by D4 between economy and victory, so D11.5 simply reads the cached value:
    ```
-   voteCount = player.score
+   voteCount = state.score[player]
    ```
-   (v1: score = simple sum of planets + techs + population. v2: more elaborate.)
+   This avoids a D11↔D14 circular dependency; both sections read from the same derived field.
 
 2. Sum all votes; if anyone has `> 50%` of total, they're elected Galactic Emperor.
 
-3. **Victory check**: if elected, emit `GalacticEmperorVictoryEvent { player }`. D14 reads this and ends the game.
+3. **Victory check**: if elected, emit `GalacticEmperorVictoryEvent { player }`. D14.3 picks this up and ends the game.
 
 If no one has >50%, no winner this round; next council meets in 25 turns.
 
@@ -189,6 +191,8 @@ Trade requires:
 
 Trade routes are created via player command (`CreateTradeRoute(from, to)`); they persist across turns.
 
+`TradeRoute.income` is **cached at end of turn** (D11.6 runs after D5.5 in the same step) so D5.5 in the *next* turn can read the cached value. This resolves the phase-order conflict: economy runs before diplomacy, but trade income is a diplomacy-owned computation. The cache is just `state.tradeRoutes[id].income = recomputed_value` written in D11.6.
+
 If either endpoint planet changes ownership, the trade route is broken (becomes `active = false` and is removed at end-of-turn cleanup).
 
 ## Dependency graph (within D11)
@@ -202,7 +206,7 @@ D11.3 (offer eval) ← reads D11.1, D11.2, D3 (race)     │
   ↓                                                    │
 D11.4 (acceptance) ← reads D11.3 result, applies via D11.2
   ↓
-D11.5 (council) ← reads D11.1 (relation), D14 (score)
+D11.5 (council) ← reads D11.1 (relation) and the derived `state.score` field (D1.3, written by D14.4)
   ↓
 D11.6 (trade) ← reads D11.1 (treaty), D6 (tech level)
 ```
@@ -217,7 +221,7 @@ Linear with one side-branch (D11.5).
 | D3 Races & Traits | `raceCompat(a, b)` for relation modifiers, `aiPersonality(race)` (race-base personality) | D3.2, D3.4 |
 | D6 Research | `techLevel(player, tree)` for trade income; `canReceiveTech`/`receiveTech` for trade offers | D6.5 |
 | D13 AI | (no import) — D13 generates AI offers; D11 evaluates them | D13 |
-| D14 Victory | Reads `Player.score` for council vote counts | D14.1 |
+| D14 Victory | (no import) — D11.5 reads the derived `state.score` field (D1.3) which D14 writes | D14.4 |
 
 D11 has moderate imports from the domain sections.
 
@@ -261,13 +265,17 @@ No top-level orchestrator — D4 calls each chunk in sequence: `applyRelationDri
 
 ## Resolved decisions for D11
 
-- **Relation score drifts toward 0** without contact. Cooling relations is realistic.
+- **Relation score is `clamp(rawScore, -100, +100)`** after all modifiers.
+- **Relation score drifts toward 0** without contact (after 10 turns of no contact, drift at 1 point/turn starting at turn 11). Cooling relations is realistic.
 - **Wars end by peace treaty or total conquest.** No automatic surrender.
-- **Council every 25 turns**, simple majority election.
+- **Council every 25 turns** (turn 25, 50, 75, …), simple majority election. Council vote count reads from the derived `state.score` field (D1.3) computed once per turn by D14.4.
 - **Trade routes manual** — created by player command, not auto-generated.
+- **Trade income cached on `TradeRoute.income`** by D11.6; D5.5 reads the previous turn's cached value.
+- **Subjugation is mechanical in v1** — vassal auto-AtWar with suzerain's enemies, pays 10% tribute. No AI heuristic.
 - **Subjugation is one-way in v1** (no liberation mechanic).
 - **Trade Pact, NAP, Alliance all enable trade routes** (NAP enables at reduced income).
 - **Treaty breakage (e.g., attacking during NAP) adds 25 to `recentBetrayal`**, decaying slowly.
+- **Research agreement is a per-turn 50/50 split of unspent research**, applied as a maintenance line in D5.5 after D6.3.
 
 ## Open questions for D11
 

@@ -7,17 +7,17 @@ This is the master planning document for the Galexp2 (Master of Orion reimaginin
 The project is structured in five phases. We do **not** skip ahead — earlier phases produce artifacts that later phases consume.
 
 ### Phase 1 — Scope and decomposition
-Status: **scope decisions complete, decomposition in progress**.
+Status: **scope decisions complete; D-layer decomposition complete (D1–D14); A-layer and P-layer decomposition pending**.
 
 - Decide the technology stack → [`ARCHITECTURE.md`](ARCHITECTURE.md) ✅ done
 - Top-level decomposition of the game → [`DECOMPOSITION.md`](DECOMPOSITION.md) ✅ done
-- Recursive decomposition into manageable chunks → in progress (starts with D9)
+- Recursive decomposition into manageable chunks → D-layer complete (D1–D14); A-layer and P-layer next
 - Testing strategy → [`TESTING.md`](TESTING.md) ✅ done
-- Phasing roadmap → [`ROADMAP.md`](ROADMAP.md)
+- Phasing roadmap → [`ROADMAP.md`](ROADMAP.md) ✅ done (refreshed to reflect D-layer completion)
 
 Deliverables of this phase:
 1. A single agreed-upon tech stack. ✅
-2. A tree of game sections where every leaf is small enough to be specified and implemented in a single focused work session. (top-level done; per-section docs in progress)
+2. A tree of game sections where every leaf is small enough to be specified and implemented in a single focused work session. ✅ for the D-layer; pending for A-layer, P-layer, I-layer.
 3. A phasing roadmap that tells us in what order to tackle the leaves.
 
 ### Phase 2 — Quint specification
@@ -48,10 +48,12 @@ Translate the Quint specs into TypeScript. The goal is *fidelity*, not clevernes
 - Use Vitest for unit tests that mirror the Quint tests
 
 ### Phase 4 — Persistence and application layer
-- Dexie schema for IndexedDB
-- Save / load game state
-- Zustand store wired to Dexie persistence
-- Save-game versioning and migration
+- A1 Game State Store: Zustand store wired to Dexie persistence (`src/application/store.ts`).
+- A2 Persistence: Dexie schema, save/load serializer/deserializer, migration framework.
+- A3 Input Commands: typed command catalog, validation, per-turn command queue.
+- A4 Turn Manager: orchestrator that collects player+AI commands, runs `step` via D4, persists state, handles save migration on load.
+- A5 Event Log: append-only event stream from the domain, with aggregation/filtering for UI consumption.
+- Save-game versioning handled by `migrate(v_nState) -> v_(n+1)State`; D4's `initTurn` calls `migrateIfNeeded` before each step (cheap insurance).
 
 ### Phase 5 — Presentation and integration
 - React UI for each screen (star map, planet, research, fleet, diplomacy, etc.)
@@ -143,6 +145,31 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D14: ties in score = draw (no winner) | v1 simplicity |
 | 2026-06-05 | D-layer complete (D1-D14 all decomposed) | Phase 1 next moves to A-layer |
 | 2026-06-05 | D5: revolt events are emitted but don't flip ownership in v1 | Full revolt mechanics deferred to v2 |
+| 2026-06-05 | A2: save migration happens in D4's `initTurn` via `migrateIfNeeded(state)` | Cheap insurance; spec phase locks the contract |
+| 2026-06-05 | D4: AI scheduling resolved — AIs are batched with human commands; A4 Turn Manager calls D13 once per turn before D4 step | AI commands may use last turn's intel (D12 ran in previous turn); "espionage informs offers" is interpreted as "this turn's offers can use the latest available intel ledger" |
+| 2026-06-05 | D4: pause-on-detection deferred to v2 / UI concern | UI handles "interesting event" surfacing after `step`; no domain-level pause |
+| 2026-06-05 | D10: ground combat is phase 7b in D4's step (between `combatResolution` and `espionage`); runs once per invasion order, sequentially in fleet-arrival order | Multi-invasion per planet is handled by the per-invasion loop; D8.4 arrival events feed D10 |
+| 2026-06-05 | D11/D14 cycle broken: `Player.score` becomes a derived field, recomputed once per turn by a helper called from D4 | D11.5 council voting and D14.4 endgame scoring both read this single derived value; no circular import |
+| 2026-06-05 | D11: relation score is `clamp(rawScore, -100, 100)` after all modifiers | Doc had no clamp; now explicit |
+| 2026-06-05 | D11: trade route income is computed at end-of-turn (D11.6) and cached on `TradeRoute.income`; D5.5 reads the cached value from the previous turn | Phase order (economy before diplomacy) makes "compute in D11, read in D5" impossible without caching |
+| 2026-06-05 | D11: research agreement is a per-turn transfer applied after D6.3 tech-cost deduction; each partner receives 50% of the other's unspent research | Mechanism pinned to a phase boundary; otherwise the "50%" was floating |
+| 2026-06-05 | D11: subjugation in v1 is mechanical — vassal is auto-set to `AtWar` with suzerain's enemies and pays 10% of gross income to suzerain per turn in D5.5 | No AI-heuristic hand-waving |
+| 2026-06-05 | D13: strategy selection *is* the difficulty mechanism in v1 (no weight scaling per difficulty) | Strategy choice gives variety; difficulty sliders deferred to v2 |
+| 2026-06-05 | D8: ETA is locked at order issue; range upgrades do not recompute ETA | Doc had contradictory body text; open question promoted to decision |
+| 2026-06-05 | D7/D8: `CombatStats.range` removed; per-ship warp range comes from `Hull.baseWarpRange` (new field); v1 ignores HyperDrive specials | Range=1 for every ship was a placeholder; now each hull carries its own range |
+| 2026-06-05 | D2.6: candidate homeworld filter expanded to `{Terrestrial, Oceanic, Arid, Tundra, Barren, Volcanic}` | Lets Bulrathi/Klackons/Sakkra/Darloks/Mrrshan get preferred-type homeworlds without always-fallback |
+| 2026-06-05 | D9: `BattleResolvedEvent { star, winner, loser, turn }` emitted by D9.6 on combat end; D14.5 increments `battlesWon`/`battlesLost` | Required for end-game stats |
+| 2026-06-05 | D9: stance reserved as data in v1 (D8.1 defines it; D9 does not consume it); D9.2 targeting consumes it in v2 | Removes dead-data concern |
+| 2026-06-05 | D9: D9.6.3 (XP) and D9.6.4 (scrap) deferred to v2; chunks defined for spec completeness, no v1 effect | Reconciles chunk list with "no XP, no scrap" v1 simplification |
+| 2026-06-05 | D9: initiative is per-ship (sorted by computer, ties by hull size) — explicit v1 simplification vs MoO per-stack | Per-stack is v2 |
+| 2026-06-05 | D1: `Building.baseEffect` is a typed ADT (FoodOutput, IndustryOutput, ResearchOutput, TradeIncome, EntertainmentBonus, DefenseBonus, IntelligenceCenter, ShipRepairBonus) | Replaces vague `baseEffect` with explicit per-output kinds consumers pattern-match on |
+| 2026-06-05 | D3: `Modifier` ADT enumerated fully — `GroundAttack`, `GroundDefense`, `CounterEspionage`, `GrowthMod`, etc. added; building/planet fields (foodOutput, intelligenceCenterCount, garrison) live in `Building.baseEffect` / `Planet`, not as race modifiers | Separates race modifiers (D3.2) from building effects (D1.2) |
+| 2026-06-05 | D11: relation drift toward 0 begins after 10 turns without contact, at 1 point/turn starting at turn 11 | Doc's "10 turns then drift" was ambiguous about when drift starts |
+| 2026-06-05 | D1: `BC_PER_TAX_POINT = 1` constant added (1 bc per tax point per turn is the v1 scale) | Pins treasury scale referenced by D5.5, D11.3, D14 |
+| 2026-06-05 | D13: `WeightVector` fields sum to 1.0 by construction (constraint documented; constructors enforce it) | Implicit in existing examples; now explicit |
+| 2026-06-05 | D13: `AIMemory.targetPlayer: Option<PlayerId>` added (used by D13.2 Aggressive strategy) | Doc referenced the field but didn't declare it |
+| 2026-06-05 | D5: `RevoltRiskEvent` is emitted by D5.1 (population growth chunk) when morale is low; D5.6 just computes the morale value | Doc had three conflicting statements of the emission site |
+| 2026-06-05 | D4: `step` passes `cmds` to every phase that consumes commands (economy, research, production, espionage, diplomacy); other phases get `(state, ctx)` only | Doc's pseudocode inconsistently dropped `cmds` from some phases |
 
 ## Open questions
 

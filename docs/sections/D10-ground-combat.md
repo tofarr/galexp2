@@ -18,7 +18,7 @@ D10 resolves planetary invasions — the moment after a fleet wins space combat 
 - Fleet movement (D8) — D10 doesn't move fleets; it only resolves the static "fleet at planet" scenario.
 - Forced treaties from conquest (deferred to D11 Diplomacy or D14 Victory — see "Resolved decisions").
 - Bombardment (deferred to v2 — see "Open questions").
-- Post-conquest revolt mechanics (D5.6 emits `RevoltRiskEvent`; actual revolt is v2).
+- Post-conquest revolt mechanics (D5.1 emits `RevoltRiskEvent` when morale is low; actual revolt is v2).
 - AI invasion decisions (D13) — D13 decides whether to invade; D10 only resolves the resulting battle.
 
 ## Top-level chunks
@@ -32,6 +32,8 @@ Five top-level chunks from `DECOMPOSITION.md`:
 - **D10.5 Outcome** — conquest, repelled, draw.
 
 D10 is invoked **after** D9 produces a winner at a star with a defended colony. The orchestrator (D4) calls D9 first, then D10 if a ground invasion happens. The trigger: the winning fleet contains at least one troop transport AND the player issues an `Invade` command (or has the default "auto-invade after winning space combat" preference set).
+
+**Multi-invasion per turn**: D4's `groundCombat` phase (phase 7b) loops over each planet with at least one invading fleet and runs D10 once per invasion order, sequentially in fleet-arrival order. The first invasion resolves against the planet's current state; the second sees the new (post-pillage or post-conquest) state, etc. This is the same "sequential resolution" pattern D9 uses for 3+ side encounters.
 
 ## Recursive decomposition
 
@@ -59,6 +61,8 @@ attackerTroops = Σ ship.count × ship.troopCapacity
                  × (1 + race.totalModifiers.groundAttack / 100)
 ```
 
+The `groundAttack` modifier comes from D3.2's `Modifier` ADT (e.g., `Militaristic` grants `GroundAttack(1)`).
+
 **Defender garrison** comes from the planet:
 
 ```
@@ -66,6 +70,8 @@ defenderGarrison = planet.garrison
                    × (1 + defenderRace.totalModifiers.groundDefense / 100)
                    + planet.population × 0.01   // civilian resistance is small
 ```
+
+The `groundDefense` modifier likewise comes from D3.2 (e.g., `Subterranean` grants `GroundDefense(1)`).
 
 **Native resistance** (if planet is `Native` or `Artifact` and not fully colonized):
 
@@ -256,21 +262,20 @@ No top-level orchestrator — D4 calls each chunk in sequence (`troops → groun
 
 - **No bombardment in v1** (only invasion). v2 chunk.
 - **No forced treaties from conquest** in v1. v2 chunk.
-- **Subterranean doesn't surrender** until fully eliminated.
+- **Subterranean doesn't surrender** until fully eliminated (defensive trait via `GroundDefense(1)` from D3.2's Modifier ADT).
 - **`MAX_GROUND_ROUNDS = 30`** prevents stalemates.
 - **Invading fleet retreats via D8** on Repelled/Draw (D10 emits the retreat event; D8 handles the actual movement).
 - **Natives always fight invaders** regardless of planet ownership.
 - **Pillage damages but doesn't destroy** buildings; auto-repair next turn.
+- **Ground combat is phase 7b** in D4's step (between `combatResolution` and `espionage`); runs once per invasion order, sequentially in fleet-arrival order.
+- **`groundAttack` and `groundDefense` modifiers** come from D3.2's `Modifier` ADT; D10 reads them via `race.totalModifiers.X`.
 
 ## Open questions for D10
 
 - **Pillage percentage baseline**: 10% population loss + race modifier. **Default v1: 10%.** Tune during playtesting.
 - **Native resistance formula**: 5% of planet population fights as `defenderNativeResistance`. **Default v1: 5%.**
 - **Invader retreat destination**: when invasion is repelled, where does the fleet go? Default v1: nearest star within warp range, picked randomly if multiple options. D8 picks the destination; D10 just emits the retreat intent.
-- **Multiple invasions on same planet per turn**: what if two fleets invade the same planet in the same turn? **Default v1: sequential** — first invasion resolves, second sees the new (post-pillage) state. Same logic as D9's "3+ sides → shuffle and pair."
 - **Defensive buildings**: should "PlanetaryShield" building affect garrison strength? **Default v1: yes, +10 defenderMorale.** Adds a small strategic reason to build it.
-
-No open questions block starting the D10 Quint spec.
 
 ## Next step
 

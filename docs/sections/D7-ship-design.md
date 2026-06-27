@@ -44,6 +44,7 @@ type Hull = {
   baseHp: int,
   baseSpeed: int,
   baseSpace: int,                // total component space available
+  baseWarpRange: int,            // warp range per ship of this hull (parsecs); replaces CombatStats.range
   baseCost: int,                 // production cost in industry
   prereqTech: Option<TechId>,    // hulls unlocked by tech
 }
@@ -51,20 +52,20 @@ type Hull = {
 
 v1 catalog (~10 hulls, MoO-style):
 
-| Hull | Size | Slots | Base HP | Base Speed | Notes |
-|---|---|---|---|---|---|
-| Fighter | Small | 1 | 5 | 30 | fast, fragile |
-| Bomber | Small | 2 | 8 | 25 | carries bombs against big ships |
-| Destroyer | Medium | 4 | 20 | 20 | versatile |
-| Cruiser | Medium | 6 | 35 | 18 | workhorse |
-| Battleship | Large | 8 | 60 | 14 | heavy combat |
-| Dreadnought | Large | 10 | 100 | 12 | battleship+ |
-| Titan | Huge | 14 | 180 | 10 | very rare |
-| Transport | Medium | 0 | 25 | 18 | carries troops; no weapons |
-| Colony Ship | Medium | 0 | 25 | 16 | has Colony Module slot |
-| Doomship | Huge | 18 | 300 | 8 | ultra-endgame |
+| Hull | Size | Slots | Base HP | Base Speed | Warp Range | Notes |
+|---|---|---|---|---|---|---|
+| Fighter | Small | 1 | 5 | 30 | 5 | fast, fragile |
+| Bomber | Small | 2 | 8 | 25 | 4 | carries bombs against big ships |
+| Destroyer | Medium | 4 | 20 | 20 | 4 | versatile |
+| Cruiser | Medium | 6 | 35 | 18 | 3 | workhorse |
+| Battleship | Large | 8 | 60 | 14 | 3 | heavy combat |
+| Dreadnought | Large | 10 | 100 | 12 | 2 | battleship+ |
+| Titan | Huge | 14 | 180 | 10 | 2 | very rare |
+| Transport | Medium | 0 | 25 | 18 | 3 | carries troops; no weapons |
+| Colony Ship | Medium | 0 | 25 | 16 | 4 | has Colony Module slot |
+| Doomship | Huge | 18 | 300 | 8 | 1 | ultra-endgame |
 
-(Exact numbers are placeholders for now; v1 spec will pin them after a few playtests.)
+(Exact numbers are placeholders for now; v1 spec will pin them after a few playtests.) The warp range column gives each hull its own per-ship range, replacing the previous "every ship has range=1" placeholder.
 
 ### D7.2 → Weapon catalog
 
@@ -168,9 +169,10 @@ type CombatStats = {
   shieldCapacity: int,// 0 if no shields; sum of shield capacities
   space: int,         // hull.baseSpace - used
   cost: int,          // hull.baseCost + sum(weapon.cost) + sum(special.cost)
-  range: int,         // base 1; HyperDrive in v2
 }
 ```
+
+**Note**: warp range is *not* part of `CombatStats` — it lives on `Hull.baseWarpRange` directly (D7.1). D8.2 reads `hull.baseWarpRange` per ship; no per-design combat-stat computation needed for movement.
 
 Computation rules (v1):
 
@@ -182,7 +184,6 @@ Computation rules (v1):
 - `shieldCapacity = Σ shield.capacity` (across all Shield specials)
 - `space = hull.baseSpace - Σ component.spaceCost`
 - `cost = hull.baseCost + Σ weapon.cost + Σ special.cost`
-- `range = 1` (no HyperDrive in v1; v2 reads from installed HyperDrive specials)
 
 Each modifier is small and explicit. The function is one fold over the components.
 
@@ -214,7 +215,7 @@ D7 has no other dependencies. Note that D7 **does not import from D6 (Research)*
 | Section | What it imports from D7 |
 |---|---|
 | D5 Economy | `Hull.baseCost` for ship production cost; full `CombatStats` for fleet-strength display |
-| D8 Fleet & Movement | `CombatStats.speed`, `CombatStats.range` for fleet movement |
+| D8 Fleet & Movement | `Hull.baseWarpRange` (per ship), `CombatStats.speed` (display only) |
 | D9 Space Combat | `CombatStats` for every shot resolution |
 | D10 Ground Combat | (indirectly) — troop transport uses Transport hull |
 | D11 Diplomacy | (indirectly) — trade offers can include ships |
@@ -255,8 +256,9 @@ No top-level `shipDesign.qnt` orchestrator is needed — D7.4 and D7.5 are indep
 - **Per-instance modifiers (race traits, owner tech) are applied at the consumer, not in D7.5.** Keeps D7.5 pure per-design.
 - **Specials catalog includes placeholder entries** for v2 specials. Forward-compatible.
 - **Hulls are universal**, not race-specific. (Per D3.1, no race-specific hulls in v1.)
-- **`CombatStats` is a fixed record shape.** New stats (e.g., `cloakDetection`) added as new fields when v2 needs them; old consumers ignore them.
+- **`CombatStats` is a fixed record shape** that excludes warp range; `Hull.baseWarpRange` is the source of truth for movement. New stats (e.g., `cloakDetection`) added as new fields when v2 needs them; old consumers ignore them.
 - **Validation returns a full error list**, not just the first error.
+- **Each hull carries its own `baseWarpRange`** (D7.1); no `CombatStats.range` field. HyperDrive specials deferred to v2.
 
 ## Open questions for D7
 

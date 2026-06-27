@@ -92,6 +92,8 @@ checkDiplomaticVictory(events) =
 
 At `state.turn >= MAX_TURN`, the player with the highest score wins.
 
+**`Player.score` is a derived field stored on `GameState` (D1.3)**, recomputed once per turn by a D4 helper that runs between economy and victory check. Both D11.5 (council vote count) and D14.4 read from this single source — there is no D11↔D14 circular dependency.
+
 Score formula:
 
 ```
@@ -137,6 +139,8 @@ PlayerStats {
 }
 ```
 
+`battlesWon` and `battlesLost` are populated by counting `BattleResolvedEvent`s from D9.6 across the game's event log (plus persisted events flushed to disk). A win is counted for the player whose fleet is `winner`; a loss for the player whose fleet is `loser`. (Draws — both sides destroyed — count as a loss for each side.)
+
 Emits `GameEndedEvent { winner, victoryKind, stats, finalTurn }`. The orchestrator (D4) checks for this event at the end of `step` and stops the game loop.
 
 ## Dependency graph (within D14)
@@ -159,6 +163,7 @@ D14.5 is called only when one of D14.1-D14.4 detects a winner.
 | D1 Core Types | `Player`, `GameState`, `Planet`, `Event`, `EndGameState`, `PlayerStats` | D1.2, D1.3 |
 | D6 Research | (read-only) — `Player.techs` for tech victory | D6 |
 | D11 Diplomacy | (read-only) — D11.5's `GalacticEmperorVictoryEvent` | D11.5 |
+| D9 Space Combat | (read-only) — `BattleResolvedEvent`s in `state.events` for `battlesWon`/`battlesLost` stats | D9.6 |
 
 D14 has minimal imports — it's a leaf consumer of game state.
 
@@ -201,15 +206,14 @@ Total ~250 lines of Quint. The four checks are small (each ~30-50 lines); the or
 - **Score formula**: planets + techs + population + fleet + treasury.
 - **No alliance or transcendence victory** in v1.
 - **Ties in score**: declared a draw (no winner).
+- **`Player.score` is a derived field on `GameState`** (D1.3), recomputed once per turn by a D4 helper. Both D11.5 council voting and D14.4 endgame scoring read from this single field. This breaks the D11↔D14 circular dependency.
+- **`BattleResolvedEvent` from D9.6** populates `battlesWon` / `battlesLost` in D14.5's `PlayerStats`.
 
 ## Open questions for D14
 
 - **Score formula balance**: weights for planets, techs, etc. are placeholders. **Default v1: 1 × planets + 5 × techs + 0.001 × pop + 0.1 × fleet + 0.001 × treasury.** Tune during playtesting.
 - **Tech victory key techs**: top of each tree (6 techs), or specific named techs (e.g., "Trans-galactic Constructor")? **Default v1: top of each tree (6 techs).**
 - **Draw condition**: if MAX_TURN reached and tied, show "draw" or pick by tiebreaker? **Default v1: draw.** v2: tiebreaker (e.g., highest fleet strength).
-- **End-game stats tracking**: do we record `battlesWon` / `battlesLost`? If so, D9 needs to emit counters. **Default v1: yes; D9 emits `BattleResolvedEvent` with winner/loser sides.**
-
-No open questions block starting the D14 Quint spec.
 
 ## Final D-section summary
 
