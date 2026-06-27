@@ -6,31 +6,31 @@ We decompose sections in **dependency order**, one section per commit. That way,
 
 ## Phase 1 — Scope and decomposition
 
-Status: in progress. Each row is one commit.
+Status: D-layer (D1–D14) decomposition complete. A-layer and P-layer decomposition pending. Each row is one commit.
 
 | Order | Section | Why this order | Doc |
 |---|---|---|---|
-| 1 | **D9 Space Combat** (pilot) | Most algorithmically complex and most isolated; sets the recursive-decomposition template. Done. | [`sections/D9-space-combat.md`](sections/D9-space-combat.md) |
-| 2 | **D1 Core Types** | Root — every later section imports from this. Defines the type vocabulary. | [`sections/D1-core-types.md`](sections/D1-core-types.md) (to write) |
-| 3 | **D2 Galaxy Generation** | Pure generator; D8 pathfinding depends on galaxy topology. | [`sections/D2-galaxy-generation.md`](sections/D2-galaxy-generation.md) (to write) |
-| 4 | **D3 Races & Traits** | Small; needed by D5/D6/D7/D11/D13. | [`sections/D3-races-and-traits.md`](sections/D3-races-and-traits.md) (to write) |
-| 5 | **D7 Ship Design & Combat Stats** | D9's main dependency is D7.5 (stat computation). | [`sections/D7-ship-design.md`](sections/D7-ship-design.md) (to write) |
-| 6 | **D8 Fleet & Movement** | D9's other dependency: D8.4 (arrival + same-owner merge) reflects the resolved D9 decision. | [`sections/D8-fleet-movement.md`](sections/D8-fleet-movement.md) (to write) |
-| 7 | **D4 Turn Cycle** | Small central orchestrator. Now safe to specify because the sections it calls into have contracts. | [`sections/D4-turn-cycle.md`](sections/D4-turn-cycle.md) (to write) |
-| 8 | **D5 Economy** | Touches most other systems; good integration test once D4 is in place. | [`sections/D5-economy.md`](sections/D5-economy.md) (to write) |
-| 9 | **D6 Research & Tech Tree** | Depends on D1, D3. | [`sections/D6-research.md`](sections/D6-research.md) (to write) |
-| 10 | **D10 Ground Combat** | Depends on D1, D8, D9. | [`sections/D10-ground-combat.md`](sections/D10-ground-combat.md) (to write) |
-| 11 | **D11 Diplomacy** | Depends on D1, D3. | [`sections/D11-diplomacy.md`](sections/D11-diplomacy.md) (to write) |
-| 12 | **D12 Espionage** | Depends on D1, D11. | [`sections/D12-espionage.md`](sections/D12-espionage.md) (to write) |
-| 13 | **D13 AI Decision Logic** | Reads from many subsystems; deferred until most of the domain is in. | [`sections/D13-ai.md`](sections/D13-ai.md) (to write) |
-| 14 | **D14 Victory Conditions** | Last domain section; depends on D4. | [`sections/D14-victory.md`](sections/D14-victory.md) (to write) |
-| 15 | **A-layer** (A1–A5) | Application/orchestration layer; depends on all domain sections. | [`sections/A1..A5.md`](sections/) (to write) |
-| 16 | **P-layer** (P1–P12) | Presentation; depends on A-layer. | [`sections/P1..P12.md`](sections/) (to write) |
-| 17 | **I-layer** (I1–I4) | Infrastructure (Quint toolchain, test harness, asset pipeline, build/deploy). Decompose when toolchain is set up. | [`sections/I1..I4.md`](sections/) (to write) |
+| 1 | **D9 Space Combat** (pilot) | Most algorithmically complex and most isolated; sets the recursive-decomposition template. Done. | [`sections/D9-space-combat.md`](sections/D9-space-combat.md) ✅ |
+| 2 | **D1 Core Types** | Root — every later section imports from this. Defines the type vocabulary. | [`sections/D1-core-types.md`](sections/D1-core-types.md) ✅ |
+| 3 | **D2 Galaxy Generation** | Pure generator; D8 pathfinding depends on galaxy topology. | [`sections/D2-galaxy-generation.md`](sections/D2-galaxy-generation.md) ✅ |
+| 4 | **D3 Races & Traits** | Small; needed by D5/D6/D7/D11/D13. | [`sections/D3-races-and-traits.md`](sections/D3-races-and-traits.md) ✅ |
+| 5 | **D7 Ship Design & Combat Stats** | D9's main dependency is D7.5 (stat computation). | [`sections/D7-ship-design.md`](sections/D7-ship-design.md) ✅ |
+| 6 | **D8 Fleet & Movement** | D9's other dependency: D8.4 (arrival + same-owner merge) reflects the resolved D9 decision. | [`sections/D8-fleet-movement.md`](sections/D8-fleet-movement.md) ✅ |
+| 7 | **D4 Turn Cycle** | Small central orchestrator. Now safe to specify because the sections it calls into have contracts. | [`sections/D4-turn-cycle.md`](sections/D4-turn-cycle.md) ✅ |
+| 8 | **D5 Economy** | Touches most other systems; good integration test once D4 is in place. | [`sections/D5-economy.md`](sections/D5-economy.md) ✅ |
+| 9 | **D6 Research & Tech Tree** | Depends on D1, D3. | [`sections/D6-research.md`](sections/D6-research.md) ✅ |
+| 10 | **D10 Ground Combat** | Depends on D1, D8, D9. | [`sections/D10-ground-combat.md`](sections/D10-ground-combat.md) ✅ |
+| 11 | **D11 Diplomacy** | Depends on D1, D3. | [`sections/D11-diplomacy.md`](sections/D11-diplomacy.md) ✅ |
+| 12 | **D12 Espionage** | Depends on D1, D11. | [`sections/D12-espionage.md`](sections/D12-espionage.md) ✅ |
+| 13 | **D13 AI Decision Logic** | Reads from many subsystems; deferred until most of the domain is in. | [`sections/D13-ai-decisions.md`](sections/D13-ai-decisions.md) ✅ |
+| 14 | **D14 Victory Conditions** | Last domain section; depends on D4. | [`sections/D14-victory.md`](sections/D14-victory.md) ✅ |
+| 15 | **A-layer** (A1–A5) | Application/orchestration layer; depends on all domain sections. Decompose next. | [`sections/A1..A5.md`](sections/) (pending) |
+| 16 | **P-layer** (P1–P12) | Presentation; depends on A-layer. | [`sections/P1..P12.md`](sections/) (pending) |
+| 17 | **I-layer** (I1–I4) | Infrastructure (Quint toolchain, test harness, asset pipeline, build/deploy). Decompose when toolchain is set up. | [`sections/I1..I4.md`](sections/) (pending) |
 
 Phase 1 deliverables, restated from PLANNING.md:
 1. A single agreed-upon tech stack. ✅
-2. A tree of game sections where every leaf is small enough to be specified and implemented in a single focused work session.
+2. A tree of game sections where every leaf is small enough to be specified and implemented in a single focused work session. ✅ for the D-layer; pending for A/P/I.
 3. This roadmap. ✅ (this file)
 
 ## Phase 2 — Quint specification

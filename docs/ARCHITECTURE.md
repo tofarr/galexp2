@@ -50,7 +50,7 @@ This is the single most important architectural constraint. It is what makes sub
 ### Principle 2: Subsystems have stable contracts
 
 Each domain subsystem exposes:
-- A **TypeScript module** with a single exported `resolve(state, commands, ctx) -> { state, events }` function.
+- A **TypeScript module** with a single exported function `(state, commands, ctx) -> { state, events }`. The canonical name in this doc is `resolve`; individual section docs use domain-specific names (`step` for D4, `economy` for D5, `combatResolution` for D9, `diplomacy` for D11, etc.). All conform to the same signature shape.
 - A **Quint spec** that defines the canonical behavior of that function.
 - A **Vitest test file** that tests the TypeScript implementation against fixtures built from the same data shapes.
 - A **Quint test file** (within the spec) that tests the spec itself via simulation.

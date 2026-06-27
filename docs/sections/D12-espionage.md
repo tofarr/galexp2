@@ -109,6 +109,13 @@ Outcomes:
 
 Emits: `MissionResolvedEvent { spy, mission, outcome }`.
 
+**Intel accuracy flag** (D12.3): for *intel-gathering* missions (StealTech, ObserveFleet, ObserveTreasury), the resulting `IntelEvent` carries an `accurate: bool` field. The flag is set by D12.2 during resolution:
+- `accurate = true` if the mission succeeded AND the spy was not detected.
+- `accurate = false` if the mission succeeded AND the spy was detected (counter-espionage fed the spy bad info).
+- `accurate = false` for failed missions (no intel produced).
+
+For sabotage missions (SabotageBuilding, SabotageShip, AssassinateLeader), the `accurate` flag is not applicable — the event is the effect itself, not intel.
+
 ### D12.3 → Intel types
 
 `IntelEvent` is an ADT describing what was learned:
@@ -162,10 +169,10 @@ Per-player skill, computed each turn:
 ```
 counterEspionageSkill(player) =
     base 1
-  + Σ planet.intelligenceCenterCount * 2      // each INT building +2
-  + race.totalModifiers.counterEspionage        // some races are better
-  + techLevel(player, Computer) * 1           // better computers = better detection
-  + min(5, sumOfEnemySpyAttempts)              // recent attempts sharpen awareness
+  + Σ(planet.buildings.baseEffect).filter(isIntelligenceCenter).value   // each Intelligence Center building (D1.2)
+  + race.totalModifiers.counterEspionage                                  // race trait modifier (D3.2 — CounterEspionage(int))
+  + techLevel(player, Computer) * 1                                       // better computers = better detection
+  + min(5, sumOfEnemySpyAttempts)                                        // recent attempts sharpen awareness
 ```
 
 The skill is used in:
@@ -197,8 +204,8 @@ Linear with D12.5 as a side-channel that affects both assignment difficulty and 
 
 | Depends on | What we need | Where it lives |
 |---|---|---|
-| D1 Core Types | `Spy`, `SpyMission`, `MissionType`, `IntelEvent`, `Player`, `Planet`, `BuildingKind`, `Fleet` | D1.2 |
-| D3 Races & Traits | `totalModifiers(race).counterEspionage` | D3.2 |
+| D1 Core Types | `Spy`, `SpyMission`, `MissionType`, `IntelEvent`, `Player`, `Planet`, `BuildingKind`, `Fleet`, `BuildingEffect.IntelligenceCenter` | D1.2 |
+| D3 Races & Traits | `totalModifiers(race).counterEspionage` (from D3.2's `CounterEspionage(int)` variant) | D3.2 |
 | D6 Research | (read-only) — `TechId` for StealTech intel | D6.1 |
 | D7 Ship Design | `HullId` for ObserveFleet intel; `Hull.baseHp` for sabotage | D7.1 |
 | D11 Diplomacy | (reads) — `relation.score` modified on detection | D11.1 |
@@ -245,6 +252,9 @@ Total ~400 lines of Quint. D12.1-D12.4 are tightly coupled (mission data flows t
 - **AssassinateLeader is a stub** in v1 (emits event with no further effect).
 - **Detection has mild diplomatic penalty** (-5 relation).
 - **SabotageBuilding reuses the pillage damaged-flag** pattern from D10.4.
+- **`IntelEvent.accurate` flag** is set by D12.2: `true` for success+undetected, `false` for success+detected or failure.
+- **`CounterEspionage` race trait** is part of D3.2's `Modifier` ADT (`CounterEspionage(int)`).
+- **`IntelligenceCenter` building effect** is part of D1.2's `BuildingEffect` ADT (`IntelligenceCenter(int)`).
 
 ## Open questions for D12
 

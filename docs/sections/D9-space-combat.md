@@ -30,7 +30,7 @@ We go one level deeper. Each sub-chunk is *almost* leaf-sized: it can be specifi
 ### D9.1 → Combat setup
 
 - **D9.1.1 Pre-battle validation** — both fleets exist, are at the same star, have positive ships. (Pure check; cheap.)
-- **D9.1.2 Initiative ordering** — sort ships by computer stat, ties broken by ship size. Pure sort.
+- **D9.1.2 Initiative ordering** — sort ships by computer stat, ties broken by ship size. **Per-ship** initiative (v1 simplification vs. MoO's per-stack initiative; v2 may restore per-stack). Pure sort.
 - **D9.1.3 Stack positioning** — assign starting coordinates on the tactical map. Pure projection from fleet composition.
 
 ### D9.2 → Targeting AI
@@ -65,10 +65,11 @@ We go one level deeper. Each sub-chunk is *almost* leaf-sized: it can be specifi
 
 ### D9.6 → Combat outcome
 
-- **D9.6.1 Survivor determination** — which ships live, which die.
-- **D9.6.2 Damage tracking per ship** — HP remaining.
-- **D9.6.3 XP awarded** — surviving ships gain experience; new designs unlock.
-- **D9.6.4 Scrap salvage** — destroyed ships leave debris; winner can collect.
+- **D9.6.1 Survivor determination** — which ships live, which die. **v1 active.**
+- **D9.6.2 Damage tracking per ship** — HP remaining. **v1 active.**
+- **D9.6.3 XP awarded** — surviving ships gain experience; new designs unlock. **Deferred to v2.** The chunk is defined here so the spec can include its type signatures and tests, but D9.6.3 emits no events and has no state effect in v1.
+- **D9.6.4 Scrap salvage** — destroyed ships leave debris; winner can collect. **Deferred to v2.** Same — chunk defined, no v1 effect.
+- **D9.6.5 Battle resolution event** — at combat end, emit `BattleResolvedEvent { star, winner: FleetId, loser: FleetId, turn }`. v1 active. Consumed by D14.5 to increment `battlesWon` / `battlesLost` for end-game stats.
 
 ## Dependency graph (within D9)
 
@@ -124,12 +125,14 @@ Each file ≈ 100–300 lines of Quint with tests. Each maps 1:1 to a TypeScript
 
 For v1 we can ship simpler behavior:
 
-- **D9.1**: simple "left vs. right" positioning, no terrain.
-- **D9.2**: greedy targeting — each ship shoots the nearest available target of any size.
+- **D9.1**: simple "left vs. right" positioning, no terrain. Per-ship initiative (v1 simplification).
+- **D9.2**: greedy targeting — each ship shoots the nearest available target of any size. Stance is **not** consumed in v1 (reserved for v2).
 - **D9.3**: flat damage formula — `max(0, attack - defense) * weaponDamage`.
 - **D9.4**: shields reduce damage by a flat amount per round; ECM adds to defense; no point defense.
 - **D9.5**: each side gets one chance to retreat at end of round; pursued fleet takes one volley.
-- **D9.6**: no XP, no scrap — just survivors.
+- **D9.6.1–2**: survivors + HP tracking.
+- **D9.6.3** (XP), **D9.6.4** (scrap): deferred to v2. Chunks defined, no v1 effect.
+- **D9.6.5**: emit `BattleResolvedEvent` at combat end for end-game stats.
 
 This is a faithful v1: the *flow* matches the original, the *outcomes* are reasonable, the *complexity* is bounded.
 
@@ -141,6 +144,10 @@ For v2 experiments, we can swap in richer formulas without touching callers — 
 - **Side composition**: combat is always 2-sided. Fleets owned by the same player arriving at the same star auto-merge into one fleet before combat starts (this is D8.4's responsibility — D8.4 produces one fleet per player-side at the star). When 3+ player-sides contest a star in the same turn, the pairing is resolved by randomly shuffling sides and pairing adjacent ones.
 - **Boarding**: out of v1. Reserved as a possible D9.7.
 - **Stellar converters / planet busters**: out of v1. Optional v2 chunks.
+- **Initiative is per-ship** in v1 (sorted by computer, ties by hull size). Per-stack initiative is v2.
+- **Stance is reserved data** — D9 does not read it in v1; D9.2 targeting AI consumes it in v2.
+- **D9.6.3 (XP) and D9.6.4 (scrap)** deferred to v2. Chunks defined for spec completeness; no v1 effect.
+- **`BattleResolvedEvent`** is emitted by D9.6 at combat end with `{star, winner, loser, turn}`; consumed by D14.5 for end-game stats and by P10 for UI feedback.
 
 ## Next step
 

@@ -73,32 +73,53 @@ The catalog itself is a `Map<RaceId, Race>` constant in the Quint spec. v1 uses 
 
 This is the most-touched D3 chunk because it exports a uniform API that every formula in D5/D9/D10/D11 reads.
 
-A `Modifier` is a typed effect on a specific formula:
+A `Modifier` is a typed effect on a specific formula. The full enumeration for v1:
 
 ```
 type Modifier =
-  | FoodProduction(float)        // multiplier: 1.20 = +20%
+  // Economy (D5) — multipliers
+  | FoodProduction(float)
   | IndustryProduction(float)
   | ResearchProduction(float)
-  | GroundCombat(int)            // flat bonus to attack/defense rolls
-  | ShipAttack(int)
-  | ShipDefense(int)
-  | ShipSpeed(int)
+  | TradeIncome(float)
+
+  // Combat (D9, D10) — flat bonuses
+  | ShipAttack(int)              // +N to CombatStats.attack
+  | ShipDefense(int)             // +N to CombatStats.defense
+  | ShipSpeed(int)               // +N to CombatStats.speed
+  | GroundAttack(int)            // +N to ground-combat attacker roll (D10.1)
+  | GroundDefense(int)           // +N to ground-combat defender roll (D10.1)
+
+  // Diplomacy (D11)
+  | Diplomacy(int)               // flat bonus to relation changes
+
+  // Espionage (D12)
+  | SpyDetection(float)          // multiplier on detection chance (passive — "easier to spot others' spies")
+  | CounterEspionage(int)        // flat bonus to counter-espionage skill (D12.5)
+
+  // Population / colonization
+  | GrowthMod(float)             // multiplier on population growth rate (D5.1)
   | ColonizationSpeed(float)
   | MaxColonies(int)
-  | Diplomacy(int)               // flat bonus to relation changes
-  | SpyDetection(float)          // multiplier on detection chance
-  | TradeIncome(float)
+
+  // Morale
+  | Morale(int)                  // flat bonus to base morale (D5.6)
+
+  // Open for v2 additions (e.g., StealthBonus, TradeDetection, …)
   | ...                           // extensible; new modifiers added as needed
 ```
+
+**Important distinction**: race *modifiers* (this list) are distinct from *building effects* (D1.2's `BuildingEffect` ADT) and *planet properties* (e.g., `Planet.garrison`, `Planet.specials`). Consumers pattern-match on whichever ADT carries the data they need. For example, "food production" is a race multiplier from D3.2's `FoodProduction` *plus* a sum of building `FoodOutput` effects from D1.2 — never both in one place.
 
 Each `Trait` value has a fixed list of modifiers, defined once in the spec:
 
 ```
 traitModifiers(HyperExpansion) = { ColonizationSpeed(1.50), MaxColonies(2) }
-traitModifiers(Militaristic)   = { GroundCombat(2), ShipAttack(1) }
+traitModifiers(Militaristic)   = { GroundAttack(1), GroundDefense(1), ShipAttack(1) }
 traitModifiers(Toltec)         = { Diplomacy(2) }
 traitModifiers(Cybernetic)     = { ResearchProduction(1.20), ShipDefense(1) }
+traitModifiers(Subterranean)   = { Morale(1) }                          // D10 reads this for ground combat
+traitModifiers(Lithovore)      = { GrowthMod(1.0) }                     // D5.1 reads "no food dependence" via separate flag
 ... // ~16 traits total
 ```
 

@@ -47,7 +47,7 @@ What lives here:
   - `MissionKind`: StealTech, SabotageBuilding, SabotageShip, CounterEspionage, Observe
   - `BuildingKind`: Factory, ResearchLab, Farm, Market, Defense, Spaceport, Capital
   - `EventKind`: many variants (combat, diplomacy, discovery, etc.)
-- **Game-wide constants**: `MAX_PLAYERS = 10`, `MIN_PLAYERS = 2`, galaxy size presets (`SMALL`, `MEDIUM`, `LARGE`, `HUGE` → star counts and map dimensions), `STARTING_TECH_LEVEL`, `MAX_TURN`, `INITIAL_POPULATION`, `COMBAT_MAX_ROUNDS`, etc.
+- **Game-wide constants**: `MAX_PLAYERS = 10`, `MIN_PLAYERS = 2`, galaxy size presets (`SMALL`, `MEDIUM`, `LARGE`, `HUGE` → star counts and map dimensions), `STARTING_TECH_LEVEL`, `MAX_TURN`, `INITIAL_POPULATION`, `COMBAT_MAX_ROUNDS`, `MAX_GROUND_ROUNDS = 30`, `COUNCIL_INTERVAL = 25`, `SPY_PRODUCTION_INTERVAL = 10`, `BC_PER_TAX_POINT = 1` (1 bc per tax point per turn — the v1 scale used by D5.5 and D11.3), `MAX_EVENTS_IN_MEMORY = 200`, etc.
 
 Modeling decisions (locked in for v1):
 - IDs are nominal newtypes over `int`, not strings. Saves space; speeds map lookups; survives catalog reordering.
@@ -60,11 +60,11 @@ What lives here (record types):
 
 - **Catalog entries** (immutable reference data; values supplied by D3/D6/D7):
   - `Race` — id, name, traits, homeworldPlanetType, aiPersonalityHints, portraitRef.
-  - `Hull` — id, name, size, slotCount, baseHp, baseSpeed, baseSpace.
+  - `Hull` — id, name, size, slotCount, baseHp, baseSpeed, baseSpace, baseWarpRange, baseCost.
   - `Weapon` — kind, baseDamage, range, shots, accuracy, spaceCost, prereqTech.
   - `Special` — kind, effect description (small enum: ShieldCapacity, ArmorReduction, ECMPenalty, PointDefenseRate, …).
   - `Tech` — id, name, tree, level, cost, prereqs, effects (ADT).
-  - `Building` — kind, max level, prereqTech, baseEffect.
+  - `Building` — kind, max level, prereqTech, baseEffect (see `BuildingEffect` ADT below).
 
 - **Mutable entities** (change during play):
   - `Player` — id, raceId, isAI, aiPersonality, homeworldPlanetId, knownStarIds, knownPlanetIds, techs (acquired), currentResearch (Option<TechId>), treasury, relations (Map<PlayerId, Relation>), spies, treaties.
@@ -75,11 +75,29 @@ What lives here (record types):
   - `ShipDesign` — id, ownerId, name, hullId, slotAssignments (list of (slotIndex, componentId)), specialIds, buildQueue.
   - `Relation` — level (int, -100..+100), modifiers (list).
   - `Treaty` — id, parties (Set<PlayerId>), kind, terms, signedOnTurn.
-  - `TradeRoute` — id, fromPlanetId, toPlanetId, ownerId, income.
+  - `TradeRoute` — id, fromPlanetId, toPlanetId, ownerId, income (cached at end of D11.6 each turn; read by D5.5 the following turn).
   - `Spy` — id, ownerId, locationPlanetId, mission (Option<Mission>), detectionRisk.
   - `Mission` — kind, targetPlayerId, startedOnTurn.
   - `Event` — id, turn, kind, payload (variant per kind).
   - `CombatEvent` — id, turn, starId, sideAId, sideBId, round, kind (Hit, Miss, Crit, ShipDestroyed, Retreat, BattleEnded), payload. Used by D9.
+
+### `BuildingEffect` ADT (used by `Building.baseEffect`)
+
+The D1.2 `Building.baseEffect` field is a sum type — each building kind produces one or more of these effects:
+
+```
+type BuildingEffect =
+  | FoodOutput(int)              // per-turn food from a Farm
+  | IndustryOutput(int)          // per-turn industry from a Factory
+  | ResearchOutput(int)          // per-turn research from a Research Lab
+  | TradeIncome(int)             // bonus trade income from a Market
+  | EntertainmentBonus(int)      // +morale contribution
+  | DefenseBonus(int)            // +ground combat morale/strength from a Defense building
+  | IntelligenceCenter(int)      // +counter-espionage skill from an Intelligence Center
+  | ShipRepairBonus(int)         // HP/turn repaired for ships docked here
+```
+
+A `Building` record carries a *list* of these (most buildings have one; some have multiple). Consumers pattern-match on the ADT to sum the contribution they care about. D5 reads `foodOutput/industryOutput/researchOutput/tradeIncome/entertainmentBonus`, D10 reads `defenseBonus`, D12 reads `intelligenceCenter`, D5.7 reads `shipRepairBonus` for the build fleet.
 
 Modeling decisions (locked in for v1):
 - Mutable entities are stored as **maps keyed by id** in `GameState`, not lists. O(1) lookup; clearer diffing for save games.
@@ -120,6 +138,7 @@ type GameState = {
   // derived (rebuilt each turn or on demand)
   relations: (PlayerId, PlayerId) -> Relation,
   events: list<Event>,
+  score: PlayerId -> int,            // derived; recomputed once per turn by D4 helper
 }
 ```
 
@@ -127,8 +146,55 @@ type GameState = {
 
 Modeling decisions (locked in for v1):
 - `relations` is derived (rebuilt from `Player` relations and treaty-derived modifiers). Stored as a map keyed by ordered `(PlayerId, PlayerId)` pair; rebuilt each turn by the economy/diplomacy phase.
-- `events` is an append-only list (cap at e.g. last 200 for memory; older events serialized to disk only on save).
+- `events` is an append-only list, **trimmed** (not rebuilt) at the end of each turn by D4.2 to the last `MAX_EVENTS_IN_MEMORY = 200` entries (D1.1). Older events are serialized to disk on save and re-merged on load.
+- `score` is a derived per-player int recomputed by a D4 helper once per turn (after economy, before victory check) using the D14.4 formula. Both D11.5 (council vote count) and D14.4 (endgame score / time victory) read from this single source. This avoids the D11↔D14 circular dependency that would result from one computing the other.
 - The map keys use Quint's `(p, q) -> Relation` syntax; ordered to canonicalize `(p, q)` with `p < q`.
+
+### Event-kind index (cross-section)
+
+Every `Event` flowing through `state.events` belongs to one of these kinds. This table is the source of truth for the universe of event kinds in v1 — each section adds new kinds in its own code, but consumers should not add events outside this list without an explicit decision.
+
+| Event kind | Emitted by | Consumed by |
+|---|---|---|
+| `TurnStarted` | D4.2 | P12 (event log) |
+| `TurnEnded` | D4.2 | P12 (event log) |
+| `ApproachingEndOfGame` | D4.2 | P12 (turn summary) |
+| `PopulationGrew` | D5.1 | P4 (planet view) |
+| `Starvation` | D5.1 | P4 (planet view) |
+| `PopulationStable` | D5.1 (Lithovore) | P4 |
+| `RevoltRisk` | D5.1 (low morale) | P4 (v1: logged only; v2 flips ownership) |
+| `FoodProduction` | D5.2 | (telemetry) |
+| `IndustryProduction` | D5.3 | (telemetry) |
+| `IncomeEvent` | D5.5 | P4, P9 |
+| `QueueItemStarted` | D5.7 | P4 |
+| `BuildingCompleted` | D5.7 | P4 |
+| `ShipCompleted` | D5.7 | P4, P6 |
+| `TechAcquired` | D6.4 | P5 |
+| `NoResearch` | D6.3 | P5 |
+| `TechReceived` | D6.5 | P5 |
+| `Arrived` | D8.3 | P3 (star map) |
+| `NoEncounter` | D8.4 | (telemetry) |
+| `Encounter` | D8.4 | D4 → D9 |
+| `CombatHit` / `CombatMiss` / `CombatCrit` / `ShipDestroyed` / `Retreat` | D9 | P10 (combat playback) |
+| `BattleResolved` | D9.6 | D14.5 (stats), P10 |
+| `GroundRound` | D10.2 | P11 (ground combat playback) |
+| `Pillage` | D10.4 | P11 |
+| `PlanetConquered` | D10.5 | P11, D14.5 (stats) |
+| `InvasionRepelled` | D10.5 | P11 |
+| `InvasionDraw` | D10.5 | P11 |
+| `TreatySigned` | D11.4 | P7, P9 |
+| `OfferRejected` | D11.4 | P7 |
+| `WarDeclared` | D11.4 | P7, D8 (war state propagation) |
+| `GalacticEmperorVictory` | D11.5 | D14.3 |
+| `MissionResolved` | D12.2 | P8 |
+| `IntelEvent` (TechObserved/FleetObserved/TreasuryObserved) | D12.3 | D13 (AI), P8, D11.3 |
+| `Sabotage` (SabotageBuilding/SabotageShip) | D12.4 | P4, P8 |
+| `LeaderAssassinated` | D12.4 | P8 (v1: logged only) |
+| `SpyCaptured` | D12.5 | P8, P7 (relation penalty) |
+| `AIPipeline` | D13.7 | (debug) |
+| `GameEnded` | D14.5 | A4 (stops game loop) |
+
+New event kinds added during the spec phase must be appended to this table.
 
 ## Dependency graph (within D1)
 

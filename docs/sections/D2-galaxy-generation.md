@@ -107,7 +107,7 @@ Output: `Star.specials` and `Planet.specials` filled in.
 ### D2.6 → Candidate homeworld selection
 
 Scan generated planets; mark as a candidate homeworld any planet matching:
-- `type ∈ {Terrestrial, Oceanic, Arid}` (hospitable for most races; some races in D3 expand this list).
+- `type ∈ {Terrestrial, Oceanic, Arid, Tundra, Barren, Volcanic}` (hospitable for every race — D3.1 lists homeworld preferences across all of these types; expanding from `{Terrestrial, Oceanic, Arid}` lets Bulrathi/Klackons/Sakkra/Darloks/Mrrshan get preferred-type homeworlds without always falling through D3.5's fallback path).
 - `size ≥ 5` (large enough to be productive).
 - `richness ≥ 4` (productive enough).
 - Not already tagged with `Native` or `Artifact` (those are gameplay-special and shouldn't be someone's starting world).

@@ -15,7 +15,7 @@ D8 moves fleets around the galaxy and resolves what happens when they arrive. Th
 
 **Does not own**:
 - Combat resolution (D9 reads the encounter events D8 emits).
-- Ship design (D7) — D8 reads `CombatStats.range` but does no design work.
+- Ship design (D7) — D8 reads `Hull.baseWarpRange` per ship but does no design work.
 - Production queues (D5.7) — D8 doesn't build ships.
 - AI movement decisions (D13) — D13 issues the orders D8 executes.
 - Anything UI-side (P3 reads fleet state; P6 issues move/split commands).
@@ -29,7 +29,7 @@ D8 moves fleets around the galaxy and resolves what happens when they arrive. Th
 Five top-level chunks lifted from `DECOMPOSITION.md` (D8.2 reframed):
 
 - **D8.1 Fleet orders** — destination, stance (defend, attack, explore); command validation.
-- **D8.2 Distance & range** — Euclidean distance between stars; per-fleet warp range from `CombatStats`.
+- **D8.2 Distance & range** — Euclidean distance between stars; per-fleet warp range from min `Hull.baseWarpRange`.
 - **D8.3 Movement** — advance in-transit fleets one turn; compute new arrivals.
 - **D8.4 Arrival & encounter detection** — auto-merge same-owner fleets at each star; pair sides for D9.
 - **D8.5 Fleet merge & split** — pure operations on fleet records (used by D8.4 and player commands).
@@ -65,7 +65,7 @@ Stance semantics:
 - `Attack` — fleet engages any enemy at destination on arrival.
 - `Explore` — fleet engages only if explicitly attacked.
 
-(v1: stance has minor gameplay effect, mostly captured in D9; the field exists so we can add behavior in v2 without changing the data model.)
+**v1 status**: stance is *reserved data* only. No code in v1 reads the stance field. D9.2 (targeting AI) will consume stance in v2 to grant initiative bonuses or first-strike preference to `Attack` fleets. In v1, the field exists so the data model is forward-compatible and so D8.1's validation can enforce "stance is a valid enum value" without further changes when v2 turns it on.
 
 ### D8.2 → Distance & range
 
@@ -76,9 +76,11 @@ distance(from: Star, to: Star): int          // Euclidean, in parsecs (integer)
 inWarpRange(fleet: Fleet, to: Star): bool    // distance ≤ fleet.warpRange
 ```
 
-`fleet.warpRange` is computed as the **minimum** `CombatStats.range` across all ships in the fleet (a fleet moves as slow as its slowest ship). Read once per movement order; cached on the fleet to avoid recomputation per turn.
+`fleet.warpRange` is computed as the **minimum** `Hull.baseWarpRange` across all ships in the fleet (a fleet moves as slow as its slowest ship). Read once per movement order; cached on the fleet to avoid recomputation per turn.
 
 v1: no warp-lane topology. v2 adds a `Map<StarId, Set<StarId>>` reachable-from-each-star and changes the distance function to "follows lanes."
+
+(Note: `CombatStats.range` was previously the source of warp range. That field has been removed — `Hull.baseWarpRange` is now the canonical per-ship warp range. See D7.5 and the resolved decisions log.)
 
 ### D8.3 → Movement
 
@@ -87,9 +89,12 @@ Pure function: `advanceFleets(state, currentTurn) -> (newState, arrivedEvents)`.
 For each fleet with `location = InTransit({ from, to, eta })`:
 - If `currentTurn >= eta`, set `location = AtStar(to)` and emit `ArrivedEvent { fleet, at: to, onTurn: currentTurn }`.
 
+ETA is **locked at order issue**: range upgrades during transit do not change an in-flight fleet's arrival turn. (A previous draft of this section said the opposite; that was an error — ETA recompute is deferred to v2.)
+
 That's it for v1. v2 adds:
 - Mid-transit rerouting (player changes destination mid-flight).
 - Fleet-to-fleet intercept (combat during transit, not just at stars).
+- Range-upgrade ETA recompute (with a clear "upgrade applies on next turn" rule).
 
 ### D8.4 → Arrival & encounter detection
 
@@ -146,7 +151,7 @@ These operations are pure functions; they don't update `GameState` themselves. T
 ```
 D8.1 (orders) ──────────────────────────────────────┐
   ↓                                                  │
-D8.2 (distance & range) ── reads D7.5 stats          │
+D8.2 (distance & range) ── reads D7.1 hulls          │
   ↓                                                  │
 D8.3 (movement) ── reads D8.1, D8.2                 │
   ↓                                                  │
@@ -167,7 +172,7 @@ Strictly linear except D8.5 which is shared with the orchestrator.
 |---|---|---|
 | D1 Core Types | `Fleet`, `Ship`, `ShipDesign`, `Star`, `FleetLocation`, `FleetId`, `StarId`, `FleetOrder`, `Stance`, `FleetEvent` | D1.1, D1.2 |
 | D2 Galaxy Generation | `Star` positions for distance computation | D2.2 |
-| D7 Ship Design | `CombatStats.range` (per ship), `Hull.baseSpeed` (for fleet speed display; not used in v1 movement) | D7.5 |
+| D7 Ship Design | `Hull.baseWarpRange` (per ship), `Hull.baseSpeed` (for fleet speed display; not used in v1 movement) | D7.1 |
 
 D8 has no other dependencies.
 
@@ -212,19 +217,17 @@ Total ~470 lines of Quint.
 - **D8.2 reframed as distance & range** (no warp lanes in v1; lanes deferred to v2).
 - **Same-owner auto-merge happens in D8.4**, not via a separate manual command. Players can't merge manually; it just happens.
 - **Split is player-initiated only.** No auto-split.
-- **Fleet warpRange is the min** of ship ranges in the fleet.
+- **Fleet warpRange is the min** of ship `Hull.baseWarpRange` values in the fleet.
 - **D8.4 emits encounter events** in a form D9 reads directly — no shared state between D8 and D9.
 - **Shuffle-and-pair for 3+ sides** (per D9 decision). Unpaired side sits out.
 - **Random shuffling takes `rng: () => number` as a parameter** (per Architecture Principle 1 — no `Math.random()`).
+- **ETA is locked at order issue.** Range upgrades during transit do not change arrival turn. v2 may add range-upgrade ETA recompute.
+- **Stance is reserved data in v1.** D9 does not read stance in v1; D9.2 consumes it in v2.
 
 ## Open questions for D8
 
-- **Stance effect on D9**: how exactly does `Attack` stance change D9 behavior? v1: any stance allows D9 to fire; v2: Attack stance could grant initiative bonus or first-strike. **Defer to D9 spec** since D9 owns combat behavior.
-- **Range upgrade during transit**: if a player's ship range is upgraded mid-transit, does the fleet arrive sooner? v1: no — ETA is locked at order issue. v2: yes, with a clear "upgrade applies on next turn" rule. **Default v1: ETA locked.**
 - **Fuel concept**: MoO didn't have fuel. Some 4X games do. **v1: no fuel.** Add as v2 chunk if requested.
 - **Do fleets have a minimum size for combat?** E.g., can a fleet of 1 Fighter fight? v1: yes, no minimum. **Default: no minimum.**
-
-No open questions block starting the D8 Quint spec.
 
 ## Cross-link with D9
 

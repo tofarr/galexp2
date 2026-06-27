@@ -81,7 +81,9 @@ type WeightVector = {
 }
 ```
 
-The strategies are essentially pre-set weight vectors + a few custom heuristics. See D13.2-D13.6.
+**Constraint**: the five fields of `WeightVector` sum to 1.0 by construction. Constructors enforce this; tests assert it. All five pre-set strategies respect this (e.g., Aggressive = 0.8+0.1+0.05+0.05+0.0 = 1.0). The constraint exists so that score formulas using the vector as a multiplier produce comparable totals across strategies.
+
+The strategies are essentially pre-set weight vectors + a few custom heuristics. See D13.2-D13.6. Strategy selection *is* the difficulty mechanism in v1: the human player chooses each AI's strategy at game start, giving them a wide difficulty range from "Balanced" (default) to "Aggressive Conqueror" (hardest). A separate per-AI difficulty slider is deferred to v2.
 
 **Common decisions (shared by all strategies):**
 
@@ -115,18 +117,19 @@ type AIMemory = {
   grudgeList: Set<PlayerId>,                 // players we want to attack eventually
   threatList: Map<PlayerId, int>,            // how threatened we feel by each player
   targetStars: Map<FleetId, StarId>,         // fleet → long-term destination
+  targetPlayer: Option<PlayerId>,            // current "weakest neighbor" focus (Aggressive strategy)
   grudgesExpireAfterTurns: int,              // default 50
 }
 ```
 
-AIs remember past events. The grudge list drives target selection for aggressive AIs; the threat list drives defensive behavior.
+AIs remember past events. The grudge list drives target selection for aggressive AIs; the threat list drives defensive behavior. `targetPlayer` is used by the Aggressive Conqueror strategy (D13.2) to hold focus on the weakest neighbor; it is reset to `None` when the target player is destroyed.
 
 ### D13.2 → Strategy: Aggressive Conqueror
 
 Weights: `{ military: 0.8, economic: 0.1, research: 0.05, diplomatic: 0.05, espionage: 0.0 }`.
 
 Custom heuristics:
-- **Target selection**: pick the weakest neighbor (lowest fleet strength + planet count) and focus attacks there.
+- **Target selection**: pick the weakest neighbor (lowest fleet strength + planet count) and focus attacks there. The chosen target is stored in `AIMemory.targetPlayer: Some(playerId)`. The AI doesn't switch targets unless the current target is destroyed (in which case `targetPlayer` is reset and a new weakest neighbor is chosen).
 - **Build priority**: 80% of industry → military ships; 20% → economy.
 - **Diplomacy**: ignore most offers; only NAP with stronger players as a temporary measure.
 - **Fleet movement**: idle fleets automatically move toward nearest enemy star.
@@ -162,7 +165,7 @@ The Technologist tries to win via D14.2 (Technological Victory — research X ke
 Weights: `{ military: 0.2, economic: 0.2, research: 0.1, diplomatic: 0.5, espionage: 0.0 }`.
 
 Custom heuristics:
-- **Council focus**: builds council votes by developing planets (council vote count = player.score from D14).
+- **Council focus**: builds council votes by developing planets (council vote count = the derived `state.score` field on `GameState`, written by D14.4).
 - **Alliances**: form Alliances with all possible players; defend allies when attacked.
 - **Trade**: open Trade Routes with everyone who'll accept.
 - **War avoidance**: only declares war if absolutely necessary (e.g., ally is being destroyed).
@@ -179,7 +182,7 @@ It's the "AI does a bit of everything" strategy. Effective at the start of the g
 
 ### D13.7 → Per-turn AI evaluation pipeline
 
-For each AI player, in **score-descending order** (most-threatened first):
+For each AI player, in **threat-descending order** (most-threatened first):
 
 ```
 runAIPipeline(state, ctx) =
@@ -189,7 +192,7 @@ runAIPipeline(state, ctx) =
     return commands collected per player
 ```
 
-"Threat" is computed as: `Σ (relationScore * -1) for each at-war relation + ownPlanetCount / totalPlanets`.
+"Threat" is computed as: `Σ (relationScore * -1) for each at-war relation + ownPlanetCount / totalPlanets`. (This is *not* D14.4's score formula; threat is a per-player pressure measure, while score is a long-game total.)
 
 The order doesn't affect the result (each AI acts on its own state), but it affects debug logs and any per-player UI animations.
 
@@ -255,16 +258,17 @@ No top-level orchestrator beyond `aiPipeline.qnt` — D4 calls it directly.
 ## Resolved decisions for D13
 
 - **5 strategies**, each a weight preset + custom heuristics.
+- **Strategy selection *is* the difficulty mechanism** in v1 (no per-AI difficulty slider; that's v2).
 - **No search / minimax in v1.** Heuristic scoring only.
-- **AIs run sequentially**, ordered by threat.
+- **AIs run sequentially**, ordered by **threat** (per-player pressure, not D14.4's score).
 - **AIs use `ctx.rng`** for any randomness (per Architecture Principle 1).
-- **`AIMemory` is per-player, persists across turns** (stored on `Player.aiMemory`).
+- **`AIMemory` is per-player, persists across turns** (stored on `Player.aiMemory`); includes `targetPlayer` for the Aggressive strategy.
 - **Grudges expire after 50 turns** (default).
+- **`WeightVector` fields sum to 1.0 by construction** (constraint enforced by constructors; tests assert it).
 - **All strategies share the common decision logic** in D13.1.
 
 ## Open questions for D13
 
-- **AI difficulty levels**: in MoO, AI had difficulty settings (easy/normal/hard). Hard AI might just use Balanced with all weights scaled up. **Default v1: no difficulty settings** — all AIs play at the same level. v2: add difficulty multipliers.
 - **AI intelligence about player state**: do AIs share information via intel or just observe what they can see? **Default v1: AIs observe their own state and their `intelLedger` from D12.** They don't know enemy fleet strengths unless they sent a spy.
 - **AI cooperation**: do allied AIs coordinate? E.g., if two AIs are allied, do they share fleets? **Default v1: no coordination** — each AI acts independently. v2: alliance coordination.
 - **AI colonies on captured planets**: does the AI keep native populations or exterminate them (Ruthless trait)? **Default v1: keep them**; population is population.

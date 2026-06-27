@@ -35,23 +35,26 @@ D4 is intentionally small — three chunks, each leaf-sized. Sub-decomposition j
 The fixed phase order is locked in for v1:
 
 ```
-1. initTurn          (D4.2) — reset per-turn flags
+1. initTurn          (D4.2) — reset per-turn flags, migrate if needed
 2. economy           (D5)   — food/industry/research/income per colony
 3. research          (D6)   — accumulate research, emit tech-acquired events
 4. production        (D5.7) — consume industry, emit new ships/buildings
 5. fleetMovement     (D8.3) — advance in-transit fleets
 6. contactResolution (D8.4) — detect arrivals, pair encounters, emit FleetEvents
 7. combatResolution  (D9)   — resolve Encounters into CombatEvents
+7b. groundCombat     (D10)  — resolve ground invasions at each conquered star (only if any)
 8. espionage         (D12)  — resolve spy missions
-9. diplomacy         (D11)  — process offers, update treaties
+9. diplomacy         (D11)  — process offers, update treaties, run council election
 10. victoryCheck     (D14)  — does anyone win this turn? (runs *before* end-of-turn cleanup)
 11. endTurn          (D4.2) — final cleanup, emit "end of turn N" event
 ```
 
-The order has two notable decisions baked in:
+The order has these notable decisions baked in:
 
-- **Espionage runs before diplomacy.** Espionage results can influence this turn's diplomatic posture, but not the reverse.
+- **Espionage runs before diplomacy.** Espionage results can influence this turn's diplomatic posture, but not the reverse. (AI offers were generated *before* `step` using last turn's intel; "espionage informs this turn's offers" is interpreted as "offers can use the latest intel ledger, which was refreshed this turn.")
 - **Victory check runs before end-of-turn cleanup.** If someone won, the game ends mid-step rather than after cleanup. (Cleaner handoff to the post-game screen.)
+- **Ground combat is phase 7b**, between space combat and espionage. It runs once per invasion order, sequentially in fleet-arrival order. Multi-invasion on the same planet is handled by the per-invasion loop.
+- **Save migration happens inside `initTurn`**: `initTurn` calls `migrateIfNeeded(state)` before any other work (cheap insurance; spec phase locks the contract).
 
 Each phase is a call:
 
@@ -63,27 +66,29 @@ The orchestrator threads state through them:
 
 ```
 step(s, cmds, ctx) =
-    let (s1, e1) = initTurn(s, ctx)              in
-    let (s2, e2) = economy(s1, cmds, ctx)        in
-    let (s3, e3) = research(s2, ctx)             in
-    let (s4, e4) = production(s3, ctx)           in
-    let (s5, e5) = fleetMovement(s4, ctx)        in
-    let (s6, e6) = contactResolution(s5, ctx)    in
-    let (s7, e7) = combatResolution(s6, ctx)     in
-    let (s8, e8) = espionage(s7, cmds, ctx)      in
-    let (s9, e9) = diplomacy(s8, cmds, ctx)      in
-    let (s10, e10) = victoryCheck(s9, ctx)       in
-    let (s11, e11) = endTurn(s10, ctx)           in
+    let (s1, e1)   = initTurn(s, ctx)              in
+    let (s2, e2)   = economy(s1, cmds, ctx)        in    // cmds: SetTaxRate, SetQueue, etc.
+    let (s3, e3)   = research(s2, cmds, ctx)       in    // cmds: SetResearch, ClearResearch
+    let (s4, e4)   = production(s3, cmds, ctx)     in    // cmds: SetQueue updates
+    let (s5, e5)   = fleetMovement(s4, ctx)        in
+    let (s6, e6)   = contactResolution(s5, ctx)    in
+    let (s7, e7)   = combatResolution(s6, ctx)     in
+    let (s7b, e7b) = groundCombat(s7, cmds, ctx)   in    // cmds: Invade per fleet
+    let (s8, e8)   = espionage(s7b, cmds, ctx)     in    // cmds: AssignMission
+    let (s9, e9)   = diplomacy(s8, cmds, ctx)      in    // cmds: ProposeTreaty, DeclareWar, etc.
+    let (s10, e10) = victoryCheck(s9, ctx)         in
+    let (s11, e11) = endTurn(s10, ctx)             in
     (s11, flatten([e1, e2, ..., e11]))
 ```
 
-The orchestrator doesn't know what's inside each phase. It just threads state and collects events.
+The orchestrator doesn't know what's inside each phase. It just threads state and collects events. Phases that accept commands receive `cmds`; phases that don't (initTurn, endTurn, fleetMovement, contactResolution, combatResolution, victoryCheck) ignore it. `groundCombat` accepts `cmds` only because `Invade` orders are conditional commands dispatched at the start of D10.
 
 ### D4.2 → Turn boundary
 
 Two helpers, both pure:
 
 **`initTurn(state, ctx) -> (state', events)`**:
+- Call `migrateIfNeeded(state)` to upgrade any loaded save to the current schema version (cheap insurance; spec phase locks the migration framework).
 - Increment `state.turn`.
 - Reset per-turn flags (e.g., `fleet.movedThisTurn = false`, `player.researchedThisTurn = false`).
 - Emit `TurnStartedEvent { turn }`.
@@ -160,18 +165,18 @@ We do **not** split this into multiple files because D4 is intentionally small a
 - **Fixed phase order** as listed above; no skipping or reordering.
 - **Espionage before diplomacy** (results can inform this turn's diplomacy, not vice versa).
 - **Victory check before end-of-turn cleanup** (game ends mid-step on win).
+- **Ground combat is phase 7b**, runs once per invasion order sequentially.
 - **No partial rollback** in v1.
 - **No interactive phases** — UI queues commands, then `step` runs.
+- **AI scheduling**: AI commands are generated *before* the human's turn ends by A4 Turn Manager calling D13; submitted along with human commands; processed in one batch by `step`.
+- **Pause-on-detection**: deferred to v2 / UI concern. UI surfaces interesting events after `step`.
+- **Save migration in `initTurn`** via `migrateIfNeeded(state)`. Cheap insurance.
 - **Per-turn flag reset** lives in `initTurn`; final cleanup in `endTurn`.
 - **`MAX_TURN` warning threshold** for end-of-game tension.
 
 ## Open questions for D4
 
-- **AI scheduling**: when does each AI run its commands? v1: AI commands are generated *before* the human's turn ends and submitted along with human commands. The orchestrator processes everything in one batch. v2 could let AIs run sequentially mid-turn. **Default v1: batch with human commands.**
-- **Pause-on-detection**: should `step` halt when an interesting event happens (e.g., first contact, war declaration) so the UI can show a dialog? v1: no pause; events queue and the UI shows them after `step`. **Defer to v2 / UI concern.**
-- **Save-game versioning in `step`**: should `step` check `state.version` and migrate before running? v1: yes — `initTurn` does `migrateIfNeeded(state)`. **Default: yes, cheap insurance.**
-
-No open questions block starting the D4 Quint spec.
+None remaining. All D4 design questions have been resolved; see [`PLANNING.md` decision log](../PLANNING.md).
 
 ## Next step
 
