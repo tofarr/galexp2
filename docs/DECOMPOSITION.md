@@ -34,6 +34,8 @@ We recursively decompose sections until every chunk meets that bar.
 
 *Decomposition target*: D1 is mostly mechanical; if the types fit in ~300 lines combined, we treat D1.1–D1.10 as one chunk.
 
+Per-section doc: [`sections/D1-core-types.md`](sections/D1-core-types.md). Consolidated into three Quint-spec-sized chunks: D1.1 primitives, D1.2 entities, D1.3 root GameState.
+
 ---
 
 ### Section D2 — Galaxy Generation
