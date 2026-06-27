@@ -50,6 +50,8 @@ Per-section doc: [`sections/D1-core-types.md`](sections/D1-core-types.md). Conso
 - D2.5 Start position selection — pick one good homeworld per race.
 - D2.6 Galaxy options & validation — galaxy size, star count, race count constraints.
 
+Per-section doc: [`sections/D2-galaxy-generation.md`](sections/D2-galaxy-generation.md). Splits into 5 Quint files: `galaxyOptions.qnt`, `starField.qnt`, `planetGen.qnt`, `specials.qnt`, `candidates.qnt`, plus a top-level `galaxyGen.qnt` orchestrator. D2.5 reframed as candidate-homeworld selection (final assignment is D3.5).
+
 ---
 
 ### Section D3 — Races & Traits

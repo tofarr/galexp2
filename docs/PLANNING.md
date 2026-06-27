@@ -92,6 +92,7 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D9: combat is always 2-sided | Fleets of the same owner at the same star auto-merge (D8.4 produces one fleet per side); when 3+ sides contest a star in the same turn, sides are paired randomly per pairing |
 | 2026-06-05 | D9: no boarding in v1 | Reserved as D9.7 if revisited |
 | 2026-06-05 | D9: no stellar converters / planet busters in v1 | Optional v2 chunks |
+| 2026-06-05 | D2: D2.5 selects candidate homeworlds only; final assignment is D3.5 | Keeps D2 focused on world generation; D3 brings preference logic |
 
 ## Open questions
 
