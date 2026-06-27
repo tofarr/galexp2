@@ -126,6 +126,11 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D11: trade routes created manually by player command | No auto-trade; v2 could add AI-suggested routes |
 | 2026-06-05 | D11: subjugation is one-way in v1 (no liberation mechanic) | Simpler; vassals stay vassals |
 | 2026-06-05 | D11: NAP enables trade at reduced income | Trade Pact gives full income; NAP gives partial |
+| 2026-06-05 | D12: StealTech produces intel only (not tech transfer) | Espionage gives info; diplomacy gives tech |
+| 2026-06-05 | D12: most missions resolve in 1 turn (StealTech takes 3) | Trade-off between risk and reward |
+| 2026-06-05 | D12: spy skill caps at 10 | Max effectiveness; tune during playtesting |
+| 2026-06-05 | D12: detected spy is captured (no escape mechanic) | v1 simplicity |
+| 2026-06-05 | D12: AssassinateLeader is a stub event in v1 (no leader system) | Will affect governance/AI when leaders land |
 | 2026-06-05 | D5: revolt events are emitted but don't flip ownership in v1 | Full revolt mechanics deferred to v2 |
 
 ## Open questions

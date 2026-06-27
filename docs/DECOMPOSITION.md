@@ -203,6 +203,8 @@ Per-section doc: [`sections/D11-diplomacy.md`](sections/D11-diplomacy.md). Four 
 - D12.4 Sabotage effects — building destroyed, ship damaged, etc.
 - D12.5 Counter-espionage — defending against enemy spies.
 
+Per-section doc: [`sections/D12-espionage.md`](sections/D12-espionage.md). Two Quint files: `spyMission.qnt` (D12.1-D12.4 mission lifecycle), `counterEspionage.qnt` (D12.5). StealTech produces intel only (not tech transfer) — espionage gives information, diplomacy gives tech. Most missions resolve in 1 turn (StealTech takes 3). Spy skill caps at 10. AssassinateLeader is a stub event in v1 (no leader system yet). Detection carries mild -5 diplomatic penalty.
+
 ---
 
 ### Section D13 — AI Decision Logic
