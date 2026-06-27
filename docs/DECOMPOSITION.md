@@ -96,6 +96,8 @@ Per-section doc: [`sections/D4-turn-cycle.md`](sections/D4-turn-cycle.md). One Q
 - D5.6 Morale calculation (race traits, buildings, wars).
 - D5.7 Building & ship production queues (consumes industry, emits new ships/buildings).
 
+Per-section doc: [`sections/D5-economy.md`](sections/D5-economy.md). Seven Quint files (one per chunk, with D5.2 + D5.3 sharing `foodAndIndustry.qnt`): population, foodAndIndustry, research, income, morale, queues, plus a top-level economy orchestrator. Linear population growth, single-item queue per planet, one tax slider, debt-as-morale-penalty, Lithovore ignores food. v1 emits RevoltRiskEvent but doesn't actually flip ownership.
+
 ---
 
 ### Section D6 — Research & Tech Tree

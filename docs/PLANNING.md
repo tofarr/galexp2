@@ -106,6 +106,12 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D4: phase order is init → economy → research → production → fleetMovement → contactResolution → combatResolution → espionage → diplomacy → victoryCheck → endTurn | Espionage before diplomacy so spy results inform this turn's offers; victory before cleanup so win ends mid-step |
 | 2026-06-05 | D4: no partial rollback in v1 (a phase error fails the whole step) | Simpler; v2 can add per-phase rollback |
 | 2026-06-05 | D4: AI commands batched with human commands (no mid-turn AI execution) | Matches v1 simplicity |
+| 2026-06-05 | D5: linear population growth (no logistic curve) | v1 simplicity |
+| 2026-06-05 | D5: single-item production queue per planet | Matches MoO; multi-item queues deferred to v2 |
+| 2026-06-05 | D5: one tax slider (income vs research split); default 30 | v1 simplicity |
+| 2026-06-05 | D5: debt reduces morale rather than capping treasury at zero | Players can go negative; v1 doesn't enforce solvency |
+| 2026-06-05 | D5: Lithovore ignores food (no starvation) | Trait interaction lives in D3 modifiers, applied in D5.1 |
+| 2026-06-05 | D5: revolt events are emitted but don't flip ownership in v1 | Full revolt mechanics deferred to v2 |
 
 ## Open questions
 
