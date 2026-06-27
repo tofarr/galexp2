@@ -88,6 +88,10 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | Subsystem isolation is top-priority architectural constraint | Every domain chunk testable without booting UI/store/persistence |
 | 2026-06-05 | All 35 chunks ship in v1, simpler implementations allowed | Contracts are stable; v2 experiments swap impls behind same interface |
 | 2026-06-05 | D9 (Space Combat) chosen as pilot for recursive decomposition | Most algorithmically complex; most isolated; most fun to playtest |
+| 2026-06-05 | D9: auto-resolve is part of v1 | Needed under the hood for AI-vs-AI combat; both auto and tactical paths share the same resolveSpaceCombat function |
+| 2026-06-05 | D9: combat is always 2-sided | Fleets of the same owner at the same star auto-merge (D8.4 produces one fleet per side); when 3+ sides contest a star in the same turn, sides are paired randomly per pairing |
+| 2026-06-05 | D9: no boarding in v1 | Reserved as D9.7 if revisited |
+| 2026-06-05 | D9: no stellar converters / planet busters in v1 | Optional v2 chunks |
 
 ## Open questions
 

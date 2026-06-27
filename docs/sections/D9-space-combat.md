@@ -6,9 +6,9 @@ Once this section is decomposed, we apply the same workflow to every other secti
 
 ## Section contract
 
-> **Space Combat Resolution**: given two (or more) fleets at a star, resolve the tactical space battle. Produces a new state for both fleets (survivors, retreat positions) and a stream of combat events.
+> **Space Combat Resolution**: given two **sides** at a star, resolve the tactical space battle. A side is a collection of fleets owned by one player that have been auto-grouped at the same star. Produces a new state for both sides (survivors, retreat positions) and a stream of combat events.
 
-**Owns**: tactical space battle resolution. The PixiJS renderer (P10) consumes the events but does not compute anything.
+**Owns**: tactical space battle resolution, including auto-resolve. The PixiJS renderer (P10) consumes the events but does not compute anything.
 
 **Does not own**: ship design (D7), fleet movement (D8), AI decision-making (D13), ground combat (D10).
 
@@ -135,15 +135,15 @@ This is a faithful v1: the *flow* matches the original, the *outcomes* are reaso
 
 For v2 experiments, we can swap in richer formulas without touching callers — the `resolveSpaceCombat` signature stays the same.
 
-## Open questions for D9
+## Resolved decisions for D9
 
-- **Auto-resolve vs. tactical**: does the player always see tactical combat, or do they get an auto-resolve option? (Original: optional auto-resolve per player setting.) This affects P10 scope but not D9 contract.
-- **Multi-fleet battles**: what happens when 3+ fleets are at the same star? D9 currently models 2; need to clarify side composition. Suggested approach: fleets are grouped by owner side; one combat involves multiple sides.
-- **Boarding**: original had troop transport ships could board. Do we keep this in v1? (Recommend: not in v1; add as D9.7 if needed.)
-- **Stellar converters, planet busters**: original superweapons. v1: not modeled. v2: optional chunk.
-
-These can be resolved before we start writing the Quint spec for D9.
+- **Auto-resolve vs. tactical**: both ship in v1. Auto-resolve is part of D9 (the same `resolveSpaceCombat` function feeds both auto and tactical paths; P10 only adds the visual playback layer). AI-vs-AI combat always auto-resolves. Human players pick per-battle from P10.
+- **Side composition**: combat is always 2-sided. Fleets owned by the same player arriving at the same star auto-merge into one fleet before combat starts (this is D8.4's responsibility — D8.4 produces one fleet per player-side at the star). When 3+ player-sides contest a star in the same turn, the pairing is resolved by randomly shuffling sides and pairing adjacent ones.
+- **Boarding**: out of v1. Reserved as a possible D9.7.
+- **Stellar converters / planet busters**: out of v1. Optional v2 chunks.
 
 ## Next step
 
-Resolve the open questions above (in chat). Once decided, write `specs/combat/spaceCombat.qnt` and the dependent files. Then implement `src/domain/combat/` to match.
+Open questions are resolved (see above). Write `specs/combat/spaceCombat.qnt` and the dependent files (`targeting.qnt`, `damage.qnt`, `specials.qnt`, `retreat.qnt`, `outcome.qnt`). Then implement `src/domain/combat/` to match.
+
+Note: `sidePairing` (the random shuffle + pairing for 3+ sides) belongs in **D9.1 (combat setup)** as a small extra sub-chunk, since it is part of producing the two sides that feed the rest of the resolver.
