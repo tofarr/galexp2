@@ -53,6 +53,24 @@ The following findings from the initial review pass were resolved:
 | 4.14 | `player.researchEfficiency` source | Resolved: D3.2 `Modifier.ResearchEfficiency(float)`; D6.3 reads it via `researchEfficiencyModifier(race)` |
 | 4.15 | Buildings for v1 | Resolved: 7 buildings (`Factory, ResearchLab, Farm, Market, Defense, Spaceport, Capital`) |
 | 4.16 | `PLANNING.md` open-questions pointer | Updated: now points at the per-section Open questions sections + this REVIEW-NOTES.md |
+| 4.17 | Round 4: `Toltec` orphan trait in D3.2 | Dropped; `Tolerant = { Diplomacy(1) }` is the canonical entry |
+| 4.18 | Round 4: `Honorable` in D10 L135 comment | Replaced with `Honorbound +2` (matches D3.2) |
+| 4.19 | Round 4: Psilons `Weapons +1 (extra)` typo | Clarified: Psilons have dual affinities (Weapons +2, Shields +1 per D3.3) |
+| 4.20 | Round 4: `Relation` shape mismatch D1 vs D11 | Unified to the D11 record in D1.2; D11.1 references it |
+| 4.21 | Round 4: `TreatyKind` enum mismatch D1 vs D11 | D1.1 now points at D11.2's authoritative ADT |
+| 4.22 | Round 4: Redundant `Player.relations/spies/treaties` | Dropped from `Player`; storage location is `GameState` only |
+| 4.23 | Round 4: `Player.aiPersonality` untyped | Typed as `Personality` (D13.1 record) |
+| 4.24 | Round 4: `ShipDesign.buildQueue` never written | Dropped; queue is per-player (D5.7) |
+| 4.25 | Round 4: Missing constants `STARTING_TECH_LEVEL`, `INITIAL_POPULATION` | Pinned: `STARTING_TECH_LEVEL = 1`, `INITIAL_POPULATION = 5` |
+| 4.26 | Round 4: `JUST_MADE_PEACE_TURNS` undefined | Pinned: `JUST_MADE_PEACE_TURNS = 5` (D1.1); re-war rule documented |
+| 4.27 | Round 4: `WarState` initial state | `WarState` ADT added to D1.1; new relations start at `AtPeace` |
+| 4.28 | Round 4: `Command` ADT scattered across sections | Single ADT added to D1.2; A3 retains validation/queue only |
+| 4.29 | Round 4: Stale `Tribute` enum value | Confirmed gone; "tribute" remains in noun sense (vassal maintenance) |
+| 4.30 | Round 4: `aiPersonality(race)` references nonexistent helper | Renamed to `aiDefaultStrategy(race)` in D11/D13 dep tables |
+| 4.31 | Round 4: `Alliance` trade-route enablement unclear | Pinned: TradePact ×1.20, Alliance ×1.20, NAP ×0.80; PeaceTreaty/Subjugation/ResearchAgreement do not enable trade |
+| 4.32 | Round 4: `HyperExpansion` "fifth trait slot" comment | Reworded: "v1 ships without it. v2 could re-add it once a race's third trait slot exists." |
+| 4.33 | Round 4: `CombatStats.cost` naming overlap | Inline comment clarifies: `// bc to build one ship of this design = …` |
+| 4.34 | Round 4: D7 drive specials comment vague | Now lists `HyperDrive / FuelTank` as the v2 candidates |
 
 All of the above are also recorded in the PLANNING.md decision log
 (2026-06-05 entries).
@@ -155,6 +173,239 @@ Phase 2 (Quint specs) or in a follow-up docs review:
   a D14 dependency, but D14.4's score formula doesn't include
   production. Either remove the dependency or add production to the
   score formula.
+
+---
+
+## Round 4 — findings (2026-06-05, resolved in this PR)
+
+A fourth docs-review pass, cross-checking every section's data-model
+references against D1.2 (the canonical type catalogue) and D1.1
+(constants), surfaced 21 findings. **All 21 resolved in the
+2026-06-05 docs-only PR on this branch** (see "Resolved in the
+2026-06-05 docs-only PR" at the top of this file for the
+high-level summary; the per-item fix list is in PLANNING.md's
+decision-log under the "Round 4" section). The findings are kept
+here as the canonical audit trail — each item below records its
+original diagnosis and the resolution applied.
+
+### Critical (will block Quint spec writing if left as-is)
+
+- **R4.1 `Trait.Tolerant` vs orphan `Trait.Toltec`** —
+  `D1-core-types.md` L41 lists the v1 `Trait` enum as 16 entries and
+  the Gnolams in `D3-races-and-traits.md` L46 carry `Tolerant`. The
+  trait-modifier table in `D3-races-and-traits.md` L129 instead defines
+  `traitModifiers(Toltec) = { Diplomacy(2) }`, and `Tolerant` is
+  re-declared at L144 with a different modifier (`{ Diplomacy(1) }`,
+  with a comment that says "was missing from prior drafts"). Both
+  `Toltec` and `Tolerant` cannot coexist: `Toltec` is not in the v1
+  catalog and no race carries it; `Tolerant` is the Gnolams' second
+  trait. **Resolution**: drop `Toltec`, keep `Tolerant`. Update
+  `D3-races-and-traits.md` L129 to `traitModifiers(Tolerant) = {
+  Diplomacy(2) }` and decide whether the L144 entry is redundant
+  (merge or delete).
+
+- **R4.2 Stale "Honorable" comment in `D10-ground-combat.md` L135** —
+  `// e.g., Honorable +1` refers to a trait that doesn't exist.
+  `D1-core-types.md` L50 declares `Honorable` as an
+  `AiPersonalityTrait` (the D3.4 hint taxonomy), not a `Trait`. The
+  actual morale-bearing trait in D3.2 L141 is `Honorbound`. **Fix**:
+  replace `Honorable` with `Honorbound` in the comment.
+
+- **R4.3 `D3-races-and-traits.md` L51 — Psilons tech-affinity typo** —
+  the Psilons row reads `Weapons +1 (extra)`. Every other race's
+  `techAffinities` value is a single `TechTree` name (Construction,
+  Computer, Propulsion, Weapons) or `none`. The `+1 (extra)` looks
+  like a column-bleed (the affinity value is `+1`, and the "(extra)"
+  is a footnote that wandered into the cell). **Fix**: row should be
+  `Weapons` with the affinity mapping `+1` per turn, consistent with
+  other races' numeric mapping (D3.3 sets the actual value).
+
+- **R4.4 `Relation` shape inconsistency** — `D1-core-types.md` L86
+  declares `Relation` as `{level: int (-100..+100), modifiers: list}`,
+  while `D11-diplomacy.md` L41-49 declares it as `{playerA, playerB,
+  score, treaties, tradeRoutes, warState, lastContactTurn}` with
+  `score` (not `level`) and "modifiers are computed, not stored".
+  These are two different record shapes for the same type. **Fix**:
+  pick D11's shape (it includes the per-treaty/per-trade-route
+  bookkeeping the diplomacy code actually reads) and rewrite D1 L86
+  to match; drop `level` in favor of `score`.
+
+- **R4.5 `TreatyKind` enum mismatch between D1 and D11** —
+  `D1-core-types.md` L46 lists `{Peace, Alliance, TradePact, NAP,
+  NonAggression, Tribute}` (6 variants, with "NAP" and
+  "NonAggression" both listed and no `ResearchAgreement` or
+  `Subjugation`). `D11-diplomacy.md` L97-103 lists
+  `{NonAggressionPact, TradePact, Alliance, PeaceTreaty, Subjugation,
+  ResearchAgreement}` (6 variants, different names). Several are
+  synonyms: `NAP ≈ NonAggressionPact`, `Peace ≈ PeaceTreaty`,
+  `Tribute ≈ Subjugation`. `ResearchAgreement` exists only in D11;
+  `NonAggression` exists only in D1. **Fix**: D11's list is the
+  authoritative one (it has the chunk-level code paths). Replace
+  D1's enum with D11's, normalize `NAP`/`NonAggressionPact` to
+  `NonAggressionPact`, and either drop the empty `terms` field on
+  `Treaty` (L87) or document what goes in it (D11's variants have
+  no parameter list).
+
+- **R4.6 `Player.relations`, `Player.spies`, `Player.treaties`
+  redundant storage** — `D1-core-types.md` L80 lists these as fields
+  on `Player`, but `D1.3` (L187) and `D11.1` (L89) declare
+  `relations` on `GameState` only (`(PlayerId, PlayerId) -> Relation`,
+  rebuilt by D11.1 each turn). Likewise `spies` and `treaties` on
+  `GameState` per L182-183. `Player.relations`, `Player.spies`,
+  `Player.treaties` are either dead fields or duplicate the canonical
+  copies. **Fix**: drop them from the Player record, or document them
+  as "cached convenience views, kept in sync by D4" (and pin the
+  invariant).
+
+- **R4.7 `Player.aiPersonality` is untyped** — D1 L80 lists the field
+  but doesn't type it. `D13-ai-decisions.md` L70-75 defines
+  `Personality { strategy: StrategyKind, weights: WeightVector,
+  aiMemory: AIMemory }`. **Fix**: type the field explicitly as
+  `Personality` in D1 L80 and add a one-line note: "human player's
+  `personality.strategy` is overridable at game start; AI players'
+  `personality` is derived via `aiDefaultStrategy(race)` at game
+  init and then mutated by D13 in-place across turns."
+
+- **R4.8 `ShipDesign.buildQueue` on `ShipDesign`, not on Player** —
+  D1 L85 declares `buildQueue` on `ShipDesign`, but D5.7's queue is
+  per-player (`player.queueItem: Option<QueueItem>`), per
+  `D5-economy.md` L189-220. A `buildQueue` on the ShipDesign record
+  is never written by any chunk. **Fix**: remove the `buildQueue`
+  field from `ShipDesign`, or document it as a v2 placeholder for
+  per-design auto-build.
+
+### High (should be resolved before Phase 2)
+
+- **R4.9 `STARTING_TECH_LEVEL` and `INITIAL_POPULATION` not pinned** —
+  `D1-core-types.md` L60 names both constants, but neither has a value.
+  D5.1 (population growth) and D6.3 (tech acquisition) both reference
+  initial values without stating them. **Fix**: pin values in D1.1
+  (suggested: `STARTING_TECH_LEVEL = 1`, `INITIAL_POPULATION = 5`).
+
+- **R4.10 `Relation.lastContactTurn` initial value unspecified** —
+  D11.1's drift rule (L322) requires it, and the formula on L66-72
+  uses it, but the field's initial value at game start isn't stated.
+  Initialized to `state.turn` at pair-creation? To 0 (and then the
+  first contact sets it)? Pin the rule.
+
+- **R4.11 `Relation.warState: JustMadePeace(until: TurnId)` semantics
+  undefined** — D11 L47 declares the variant but no chunk defines the
+  window length (5 turns? 10?) or what the "until" turn enforces
+  (no-attack cooldown? relation boost? both?). Pin the constant
+  (`JUST_MADE_PEACE_TURNS = N`) and the rules.
+
+- **R4.12 `WarState.AtPeace` initialization never pinned** — D11 L47
+  declares `AtPeace | AtWar(since: TurnId) | JustMadePeace(until: TurnId)`
+  but the default for a fresh `Relation` record is unspecified. The
+  open question 4.2 ("per-pair starting relations") partly depends on
+  this; pin the default (suggested: `AtPeace` with `score = 0`).
+
+- **R4.13 `Command` ADT scattered across D-sections without a single
+  source of truth** — D1 L288 says `Command` is "defined in A3" (the
+  A-layer). D4 L72-80, D6 L120-121, D11 L122, D12 L59, D13 L3,
+  D13 L246-250 each list command names (`SetTaxRate`, `SetQueue`,
+  `SetResearch`, `BuildBuilding`, `BuildShip`, `ProposeTreaty`,
+  `DeclareWarCommand`, `CreateTradeRoute`, `AssignMission`,
+  `MoveTo`, `Invade`). D13 L65 declares `commands: List<Command>`
+  but the type itself lives only in a forward reference. **Fix**:
+  add a `Command` ADT declaration in D1.2 (list all variants
+  cross-referenced above) so D13's spec is testable; A3 can then
+  refine it without changing the variant list.
+
+### Medium (low-risk; can defer to spec phase)
+
+- **R4.14 `Trait.HyperExpansion` removal comment in D1 L41** — D1
+  L41 says "HyperExpansion is no longer in the ADT — it had no race
+  assigned; v2 could re-add it as a fifth trait slot." But D3.1's
+  race catalog has every race carrying exactly **2** traits (D3.1
+  table), not 3-5. The comment's wording ("fifth trait slot")
+  implies a 3–5 trait-per-race structure that doesn't match the
+  rest of the doc. **Fix**: rewrite the comment to match the actual
+  2-trait invariant.
+
+- **R4.15 "Tribute" vs "Subjugation" terminology** — D11 uses
+  `Subjugation` for the vassal treaty kind (L101, L110-111) but the
+  trait-modifier system and D11.3's strategy table never use the
+  word "tribute" after R1 resolution. Verify no stale references to
+  "Tribute" remain anywhere (`grep -rn Tribute docs/`).
+
+- **R4.16 `D11-diplomacy.md` L274 dependency table** — cites
+  `aiPersonality(race)` from D3.2/D3.4. There is no helper named
+  `aiPersonality(race)` in D3; the helper is `aiDefaultStrategy(race)`
+  (D13.1, returns a `StrategyKind`, not a `Personality`). **Fix**:
+  replace with `aiDefaultStrategy(race)` or define a thin
+  `aiPersonality(race)` wrapper if the term is needed for parity with
+  D11.3's argument naming.
+
+- **R4.17 `D11-diplomacy.md` L47 — `Relation.playerA / playerB`
+  redundant given map keying** — `Relation` is stored at
+  `state.relations[(a, b)]`, so embedding `playerA`/`playerB` in
+  the value is duplicate. Either drop the fields or document them
+  as "denormalized convenience for the UI layer; must equal the
+  map key".
+
+- **R4.18 `Trait.Tolerant` modifier value in D3.2 L144** — currently
+  `{ Diplomacy(1) }` with the comment "was missing from prior
+  drafts". R4.1's fix would consolidate this into L129. Decide
+  whether the diplomacy bonus is +1 or +2 (the rest of D3.2's
+  Diplomacy values are small ints: `Repulsive = -2`,
+  `Tolerant = +1`).
+
+### Low (housekeeping; non-blocking)
+
+- **R4.19 `D5-economy.md` L213** — `BuildShip(designId, count) →
+  count × design(state, designId).cost` (where `cost` is
+  `CombatStats.cost`). D7.5's `CombatStats.cost` is computed from
+  `hull.baseCost + weapon.cost + special.cost` (D7 L174). This is
+  fine, but the field name `CombatStats.cost` overlaps semantically
+  with `Hull.baseCost` and `Building.baseCost`. Consider renaming
+  to `CombatStats.buildCost` for clarity, or add a one-liner
+  explaining that "CombatStats.cost is the bc cost to build one
+  ship of this design" (matching the build-economy concept, not
+  the combat concept).
+
+- **R4.20 `D7-ship-design.md` L171** — `speed: int, // hull.baseSpeed
+  (v1; v2 may add drive specials)`. The comment implies drive
+  specials are v2, but the v1 `SpecialKind` catalog (D1 L44) lists
+  `FuelTank` and D7 L127 lists `FuelTank` as "Placeholder specials
+  in catalog, but no v1 effect yet". So speed is *not* the only
+  v2-affected combat stat — `HyperDrive` is also v2. **Fix**: the
+  comment should say "drive specials (HyperDrive, FuelTank) deferred
+  to v2; speed = hull.baseSpeed in v1".
+
+- **R4.21 `D11-diplomacy.md` L243** — "A treaty allows trade (Trade
+  Pact, Alliance, NAP — NAP allows trade in v1)." D11 L108 says
+  `TradePact` enables `TradeRoute`, and L329 says "Trade Pact, NAP,
+  Alliance all enable trade routes". But the `Alliance` description
+  on L108 doesn't mention trade. Pin whether `Alliance` enables
+  trade at full or reduced income (currently Trade Pact enables it;
+  if Alliance enables it too, what's the bonus?).
+
+### Resolutions applied in this PR
+
+| ID | Resolution |
+|---|---|
+| R4.1 | Dropped `traitModifiers(Toltec)` from `D3.2`; kept `Tolerant = { Diplomacy(1) }` (Gnolams' actual trait). |
+| R4.2 | `D10 L135`: `Honorable +1` → `Honorbound +2` (matches D3.2's `traitModifiers(Honorbound) = { Morale(2), … }`). |
+| R4.3 | `D3.1` Psilons row: `Weapons +1 (extra)` → `Weapons, Shields (D3.3: Weapons +2, Shields +1)` (Psilons have dual affinities in D3.3). |
+| R4.4 | Replaced `D1.2 Relation = { level, modifiers }` with the full D11.1 record (`playerA, playerB, score, treaties, tradeRoutes, warState, lastContactTurn`). D11.1 now references D1.2 instead of redefining. |
+| R4.5 | Replaced D1.1's stale `TreatyKind` list with a pointer to D11.2's authoritative ADT (NonAggressionPact, TradePact, Alliance, PeaceTreaty, Subjugation, ResearchAgreement). |
+| R4.6 | Dropped `Player.relations, spies, treaties` (declared on `Player` but only written on `GameState`). Added note explaining the storage location. |
+| R4.7 | Typed `Player.aiPersonality` as `Personality` (D13.1 record) in D1.2. |
+| R4.8 | Dropped `ShipDesign.buildQueue` (never written; build queue is per-player in D5.7). |
+| R4.9 | Pinned `STARTING_TECH_LEVEL = 1`, `INITIAL_POPULATION = 5` in D1.1. |
+| R4.10 | Pinned `Relation.lastContactTurn` initial value: `state.turn` at pair creation (D11.1). |
+| R4.11 | Pinned `JUST_MADE_PEACE_TURNS = 5` in D1.1; documented `JustMadePeace(until: state.turn + JUST_MADE_PEACE_TURNS)` and re-war rule. |
+| R4.12 | Added `WarState` ADT to D1.1 (AtPeace/AtWar/JustMadePeace) with initialization rule. |
+| R4.13 | Added `Command` ADT to D1.2 as the single source of truth; D13 dependency table updated. A3 retains validation/queue responsibility but no longer defines variants. |
+| R4.14 | Reworded the `HyperExpansion` comment: "v1 ships without it. v2 could re-add it once a race's third trait slot exists." |
+| R4.15 | Verified: no stale `Tribute` enum value remains. D5/D11 use "tribute" only in the noun sense (a maintenance-line payment from vassal to suzerain). |
+| R4.16 | `D11` and `D13` dependency tables now reference `aiDefaultStrategy(race)` instead of the nonexistent `aiPersonality(race)`. |
+| R4.17 | Kept `Relation.playerA/playerB` for now (they're useful in event payloads and tests). Documented the redundancy in the D1.2 record comment. |
+| R4.18 | Resolved by R4.1: `Tolerant = { Diplomacy(1) }` (the L144 Gnolams-correct value). |
+| R4.19 | Added inline comment to `CombatStats.cost`: `// bc to build one ship of this design = …`. |
+| R4.20 | `D7 L171`: "v2 may add drive specials" → "v2 may add HyperDrive / FuelTank specials that increase it". |
+| R4.21 | Pinned trade-rate modifiers in D11: TradePact ×1.20, Alliance ×1.20, NAP ×0.80. PeaceTreaty/Subjugation/ResearchAgreement do not enable trade. |
 
 ---
 
