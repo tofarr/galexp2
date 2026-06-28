@@ -402,6 +402,24 @@ Per-section doc: [`sections/D14-victory.md`](sections/D14-victory.md). Two Quint
 - P12.2 Next-turn button.
 - P12.3 Council vote screen (when triggered).
 
+### Section P13 — AI Inspector
+
+**Contract**: a debug / "view source" panel that lets the player inspect each AI's reasoning, `Personality.weights`, `aiMemory`, and the `Command[]` produced by D13 for the current turn. Reads only `AIOutput.reasoning` (D13.1) — does not influence decisions.
+
+**Chunks**:
+- P13.1 AI list panel (one row per AI player with their `StrategyKind` and weight vector).
+- P13.2 Reasoning log view (per-turn `List<string>` debug log).
+- P13.3 Command preview ("this turn the AI is going to: build a Factory on Tau Ceti IV, research Bio-Enhancement, propose NAP to Psilons, …").
+
+### Section P14 — Hall of Fame / Stats Screen
+
+**Contract**: persists historical `PlayerStats` (D14.5) across games. New game → load prior records; end-of-game → append the latest `PlayerStats`. v1 keeps stats in a single JSON file on disk; v2 could push them to a backend.
+
+**Chunks**:
+- P14.1 Persistent stats store (read/write `localStorage` / IndexedDB).
+- P14.2 Per-game record view: techs researched, planets conquered, battles won/lost.
+- P14.3 Leaderboard ("most planets owned in a single game", etc.).
+
 ---
 
 ## Layer 3 — Infrastructure

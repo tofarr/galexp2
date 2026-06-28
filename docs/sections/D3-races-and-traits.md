@@ -62,7 +62,7 @@ type Race = {
   traits: Set<Trait>,
   homeworldPreference: PlanetType,
   techAffinities: Map<TechTree, int>,   // bonus research points per turn
-  aiPersonalityHints: Set<AiPersonalityTrait>,   // e.g., {Aggressive, Expansionist}
+  aiPersonalityHints: Set<AiPersonalityTrait>,   // soft defaults; D13.1 maps these to its own StrategyKind (Aggressive | Builder | Technologist | Diplomat | Balanced)
   portraitRef: string,                  // asset reference, not loaded by D3
 }
 ```
@@ -105,6 +105,12 @@ type Modifier =
   // Morale
   | Morale(int)                  // flat bonus to base morale (D5.6)
 
+  // Pillage / conquest (D10.4)
+  | Pillage(float)               // addend to pillage population-loss fraction (e.g., +0.05 = +5%)
+
+  // Research efficiency (D6.3)
+  | ResearchEfficiency(float)    // multiplier on grossResearch → accumulated research (e.g., Erudite 1.20)
+
   // Open for v2 additions (e.g., StealthBonus, TradeDetection, …)
   | ...                           // extensible; new modifiers added as needed
 ```
@@ -117,11 +123,26 @@ Each `Trait` value has a fixed list of modifiers, defined once in the spec:
 traitModifiers(HyperExpansion) = { ColonizationSpeed(1.50), MaxColonies(2) }
 traitModifiers(Militaristic)   = { GroundAttack(1), GroundDefense(1), ShipAttack(1) }
 traitModifiers(Toltec)         = { Diplomacy(2) }
-traitModifiers(Cybernetic)     = { ResearchProduction(1.20), ShipDefense(1) }
+traitModifiers(Cybernetic)     = { ResearchEfficiency(1.20), ShipDefense(1) }
 traitModifiers(Subterranean)   = { Morale(1) }                          // D10 reads this for ground combat
 traitModifiers(Lithovore)      = { GrowthMod(1.0) }                     // D5.1 reads "no food dependence" via separate flag
-... // ~16 traits total
+traitModifiers(Skilled)        = { ResearchEfficiency(1.10), IndustryProduction(1.10) }
+traitModifiers(Versatile)      = { FoodProduction(1.10), IndustryProduction(1.10), ResearchEfficiency(1.10) }
+traitModifiers(Flight)         = { ShipSpeed(1), ShipDefense(1) }
+traitModifiers(Warrior)        = { ShipAttack(1), GroundAttack(1) }
+traitModifiers(Stealthy)       = { SpyDetection(0.85) }                 // passive: harder to detect own spies
+traitModifiers(Repulsive)      = { Diplomacy(-2) }
+traitModifiers(Industrial)     = { IndustryProduction(1.20) }
+traitModifiers(Creative)       = { ResearchEfficiency(1.15) }
+traitModifiers(Honorbound)     = { Morale(2), Pillage(-0.05) }          // Pillage less aggressively
+traitModifiers(Telepathic)     = { CounterEspionage(2) }
+traitModifiers(Erudite)        = { ResearchEfficiency(1.20) }
+... // ~16 traits total (this list is illustrative; final catalog pinned at spec phase)
 ```
+
+The D3.1 race catalog uses trait names that must each have an entry in this
+table. New traits can be added by extending the ADT and this mapping;
+existing modifiers don't need to change.
 
 Consumers sum the modifiers from all of a race's traits:
 

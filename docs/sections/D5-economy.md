@@ -123,13 +123,19 @@ The `currentResearch` field on `Player` is set by D6 (when the player picks what
 Per-player function: `netIncome(player, planets, grossResearch, ctx) -> (net, events)`.
 
 ```
-grossIncome = Σ planet.baseTaxIncome                       // per-planet flat income (BC_PER_TAX_POINT)
+grossIncome = Σ planet.baseTaxIncome                       // per-planet flat income: PLANET_BASE_TAX_INCOME × (taxRate / 100)
             + Σ tradeRoutes(player).income                 // cached from D11.6 last turn
             + floor(player.grossResearch × (taxRate / 100))  // slider
 
-maintenance = Σ(planet.buildings.baseEffect).filter(isMaintenance).value  // per-building upkeep (BuildingEffect.Maintenance — to be added if needed; v1: 0)
-            + Σ fleets(player).supplyCost                  // from D7 hull.baseSupply
-            + Σ spies(player).upkeep                       // per-spy flat cost
+// per-ship supply cost = Σ ship.count × shipDesign(state, ship).hull.baseSupply (D7.1)
+fleetSupplyCost = sum over all fleets owned by player of Σ ship.count × shipDesign(state, ship).hull.baseSupply
+
+// per-spy upkeep = |player.spies| × SPY_UPKEEP_PER_TURN  (D1.1 constant; default 1)
+spyUpkeep = |player.spies| × SPY_UPKEEP_PER_TURN
+
+maintenance = Σ(planet.buildings.baseEffect).filter(isMaintenance).value  // per-building upkeep (v1: no BuildingEffect.Maintenance variant — sum is 0)
+            + fleetSupplyCost
+            + spyUpkeep
             + subjugationTribute(player)                   // 10% of gross income to suzerain (D11)
 
 netIncome = grossIncome - maintenance
@@ -139,7 +145,7 @@ netIncome = grossIncome - maintenance
 
 **Subjugation tribute** (D11): if player A is subjugated to player B, 10% of A's gross income is transferred to B each turn as a maintenance line. Mechanism: `subjugationTribute(player) = 0.10 × grossIncome(player)` if `player` has a suzerain.
 
-**Research agreement transfer** (D11): if A and B have a research agreement, the gross research each generates in D5.4 is split 50/50 between them after D6.3 has deducted the cost of any tech-acquired this turn. The transfer is applied before D5.5's net-income calculation, so it counts toward treasury on the receiving side and as a maintenance line on the paying side (so the total is conserved).
+**Research agreement transfer** (D11): if A and B have a research agreement, the gross research each generates in D5.4 is split 50/50 between them after D6.3 has deducted the cost of any tech-acquired this turn. The transfer is applied **inside D5.5** as a maintenance line for the paying side and a positive line for the receiving side (so the total is conserved). This is the implementation chunk for the research-agreement mechanism — D11's chunk list does not add a new section for it; D5.5 reads the treaties map and applies the transfer inline. See the PLANNING.md decision log (2026-06-05 entry on D11.6→D5.5 caching and the 2026-06-05 entry on the 50/50 split) for the rationale.
 
 Tax slider semantics:
 - `taxRate ∈ [0, 100]`. Default 30.
@@ -179,24 +185,36 @@ Morale feeds back into D5.3 (industry production scaled by morale/100) and D5.1 
 
 Per-planet function: `applyProductionQueue(planet, availableIndustry, race, ctx) -> (planet', events)`.
 
-The planet's queue holds at most one item in v1 (a `QueueItem` is `BuildBuilding(BuildingKind)` or `BuildShip(ShipDesign, count)`):
+The planet's queue holds **at most one item** in v1 (a `QueueItem` is
+`BuildBuilding(BuildingKind)` or `BuildShip(ShipDesign, count)`):
 
 ```
+// Single-item queue. Empty queue = nothing to produce this turn.
+if planet.queueItem == None: return (planet, [])
+
 progress = planet.queueProgress + availableIndustry
-cost     = queueItem.cost(player, race, hull)   // Building.cost or ShipDesign.cost
+cost = queueItemCost(planet.queueItem, state, planet)   // see below
 
 if progress >= cost:
     emit QueueItemCompletedEvent
     applyItem(planet, queueItem)   // adds Building or Ship
     queueProgress = 0
-    queueItem = nextQueueItem(player)   // player can queue multiple; v1 dequeues next
+    queueItem = None               // v1: queue empties on completion; player must issue a new SetQueue command to produce more
 else:
     queueProgress = progress
 ```
 
-`ShipDesign.cost` comes from D7.5 (`CombatStats.cost`). The completed ship is added to a designated build fleet at the planet (creating it if it doesn't exist; ownership is the player).
+`queueItemCost`:
+- `BuildBuilding(kind)` → `BuildingKind.cost(kind)` (lookup table in D7 spec; ~10 bc × level by default).
+- `BuildShip(designId, count)` → `count × design(state, designId).cost` (`CombatStats.cost` from D7.5).
 
-If `availableIndustry < cost`, the item stays in the queue with accumulated progress.
+The completed ship is added to a designated build fleet at the planet
+(creating it if it doesn't exist; ownership is the player).
+
+If `availableIndustry < cost`, the item stays in the queue with
+accumulated progress (progress is preserved across turns until either
+the item completes or the player issues a `ClearQueue` /
+`SetQueue(newItem)` command — which resets `queueProgress = 0`).
 
 Emits: `BuildingCompletedEvent`, `ShipCompletedEvent`, `QueueItemStartedEvent`.
 
@@ -290,11 +308,13 @@ We split D5.2 and D5.3 into one file because they share the per-planet productio
 
 ## Open questions for D5
 
-- **Max population formula**: how is `planet.maxPopulation` computed? Original MoO had it depend on size + type. **Default v1: `maxPop = planet.size × sizeFactor(planet.type)`**, with the sizeFactor table in the Quint spec. Defer exact table to spec phase.
-- **Building catalog**: what buildings exist? MoO had ~10 (Factory, Research Lab, Farm, Market, etc.). **Default v1: ~10 buildings**, with the exact list and effects in the spec.
-- **Supply cost per fleet**: how much does each ship cost in maintenance? **Default v1: `cost = hull.baseSupply`**, where `baseSupply` is a small int per hull (e.g., Fighter=1, Cruiser=3, Battleship=8, Titan=20). Exact values in D7 spec.
-- **War weariness formula**: how much does each war reduce morale? **Default v1: `-10` per active war**, capped at `-30`. Easy to tune later.
-- **Recently-conquered penalty duration**: how many turns does the -20 penalty last? **Default v1: 5 turns.** Could become player-configurable later.
+- **Max population formula**: how is `planet.maxPopulation` computed? **Resolved v1: `maxPop = planet.size × sizeFactor(planet.type)`**, where the `sizeFactor` table is `Terrestrial=2, Oceanic=2, Arid=1.5, Tundra=1.5, Barren=1, Volcanic=1, GasGiant=0.5, AsteroidBelt=0.25` (planets with `size=10` max out at 20 population on Terrestrial/Oceanic). Tune during playtesting.
+- **Building catalog**: what buildings exist? MoO had ~10. **Resolved v1: 7 buildings** — `Factory, ResearchLab, Farm, Market, Defense, Spaceport, Capital` — each with one `BuildingEffect` from the ADT in D1.2. Per-building costs are a small lookup table (`~10 bc × level`); the exact list/effects live in the D7 spec.
+- **Supply cost per fleet**: how much does each ship cost in maintenance? **Resolved v1: `cost = Σ ship.count × shipDesign(state, ship).hull.baseSupply`**. `baseSupply` is a `Hull` field (D7.1) with v1 values: Fighter=1, Bomber=1, Destroyer=1, Cruiser=3, Battleship=8, Dreadnought=12, Titan=20, Transport=2, Colony Ship=2, Doomship=50. Per-fleet total supply feeds D5.5's `fleetSupplyCost`.
+- **War weariness formula**: how much does each war reduce morale? **Resolved v1: `-10` per active war**, capped at `-30`. Easy to tune later.
+- **Recently-conquered penalty duration**: how many turns does the -20 penalty last? **Resolved v1: 5 turns.** Driven by `Planet.conqueredOnTurn` (D1.2) and a `RECENTLY_CONQUERED_TURNS = 5` constant in D1.1.
+- **Per-spy upkeep?** Resolved: `SPY_UPKEEP_PER_TURN = 1` bc per spy per turn (D1.1). `spyUpkeep = |player.spies| × SPY_UPKEEP_PER_TURN` (D5.5).
+- **Per-planet base tax income?** Resolved: `PLANET_BASE_TAX_INCOME = 1` bc per planet per turn at `taxRate = 0` baseline (D1.1). D5.5 scales by `taxRate / 100`.
 
 No open questions block starting the D5 Quint spec.
 

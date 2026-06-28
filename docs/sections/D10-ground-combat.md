@@ -55,13 +55,13 @@ type TroopStrengths = {
 **Attacker troops** count comes from the invasion fleet:
 
 ```
-attackerTroops = Σ ship.count × ship.troopCapacity
-                 // Transport hull from D7 has troopCapacity = N
+attackerTroops = Σ ship.count × shipDesign(state, ship).hull.troopCapacity
+                 // Transport hull from D7 has troopCapacity = 100 (default v1)
                  // Cruiser hull has troopCapacity = 0 (not an invasion ship)
                  × (1 + race.totalModifiers.groundAttack / 100)
 ```
 
-The `groundAttack` modifier comes from D3.2's `Modifier` ADT (e.g., `Militaristic` grants `GroundAttack(1)`).
+`shipDesign(state, ship)` is the lookup into `state.designs[ship.designId]`; `troopCapacity` lives on the Hull (D7.1). The `groundAttack` modifier comes from D3.2's `Modifier` ADT (e.g., `Militaristic` grants `GroundAttack(1)`).
 
 **Defender garrison** comes from the planet:
 
@@ -131,7 +131,7 @@ Defender morale is computed once before combat:
 
 ```
 defenderMorale = baseMorale(50)
-                 + buildings.defenseBonus(planet)     // e.g., PlanetaryShield +10
+                 + buildings.defenseBonus(planet)     // e.g., Defense +10 (D1.2 BuildingKind)
                  + race.totalModifiers.morale          // e.g., Honorable +1
                  - (defenderStrengthRatio < 1 ? 20 : 0) // hopeless defender penalty
 ```
@@ -145,11 +145,17 @@ If the defender has `Subterranean` trait, they don't surrender until their garri
 Applied only on conquest (called from D10.5):
 
 ```
-populationLoss = planet.population × (0.10 + attackerRace.pillageModifier)
-                // 10% baseline + race modifier (e.g., Bulrathi more aggressive)
+populationLoss = planet.population × (0.10 + sumPillagerModifier(attackerRace))
+                // 10% baseline + race modifier via D3.2's Modifier.Pillage(float)
+                // (e.g., Bulrathi trait might grant Pillage(0.05))
 buildingDamage = sample(planet.buildings, prob=0.15 per building)
                 // 15% chance each building is damaged (needs repair)
 ```
+
+`sumPillagerModifier(race)` reads `totalModifiers(race)` and sums the
+`Pillage(float)` variants. See D3.2's `Modifier` ADT for the full
+enumeration. The base 10% is the v1 default; trait-derived modifiers
+add to it.
 
 `buildingDamage` doesn't destroy buildings; it sets `building.damaged = true`. Repairs happen automatically next turn (D5.7's queue) or manually (P4).
 
@@ -179,7 +185,8 @@ outcome =
 3. `planet.population = max(1, planet.population - populationLoss)`.
 4. Mark damaged buildings.
 5. Reset `planet.garrison` to invader's remaining troops (or 0 if invader takes only partial control).
-6. Emit `PlanetConqueredEvent { planet, newOwner, oldOwner, casualties }`.
+6. `planet.conqueredOnTurn = Some(state.turn)` (consumed by D5.6's morale `recentlyConquered` modifier for the next 5 turns).
+7. Emit `PlanetConqueredEvent { planet, newOwner, oldOwner, casualties }`.
 
 **Repelled**:
 - Planet unchanged.

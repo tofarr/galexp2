@@ -140,8 +140,9 @@ Returns a single Fleet; the input fleets are removed from `GameState.fleets`.
 
 **Split**: `splitFleet(fleet: Fleet, newId: FleetId, shipIndices: Set<int>) -> (Fleet, Fleet)`.
 - Splits the fleet into two fleets at the same location.
-- `shipIndices` references ships in the original fleet's `ships` list; ships in the set go to the new fleet, the rest stay.
-- Preconditions: `shipIndices` is non-empty and a strict subset of the original fleet's ship indices; newId is unused.
+- `shipIndices` references **ship-design slots** in the original fleet's `ships: List<{designId: ShipDesignId, count: int}>` list (one index per slot, not per individual ship). For example, a fleet `[{designId: Fighter, count: 10}, {designId: Cruiser, count: 3}]` has two slots (indices 0 and 1); to send the Cruisers to the new fleet you'd split with `{1}`. To split a partial count from one slot you'd need a separate `SplitFromSlot(designId, count)` operation — v1 doesn't ship that; v1 splits only by whole slots.
+- Ships in the named slots go to the new fleet; the rest stay.
+- Preconditions: `shipIndices` is non-empty and a strict subset of `{0..|ships|-1}`; newId is unused; each split-off slot has at least one ship (always true for whole-slot splits).
 - Both result fleets share `location`, `owner`, `orders = empty`.
 
 These operations are pure functions; they don't update `GameState` themselves. The caller (D8.4 for merge; A4 Turn Manager for player-initiated split) applies the result.
@@ -207,7 +208,7 @@ Total ~470 lines of Quint.
 
 - **Euclidean warp**, no lanes. Any star within range is reachable in one move.
 - **Single-fleet-per-owner at each star.** Auto-merge is the rule; split is the exception (player-initiated).
-- **No mid-transit rerouting.** Order is set at issue time; ETA doesn't change unless range upgrades and the upgrade rule is "recompute ETA on range change" (simple recompute; no special logic).
+- **No mid-transit rerouting.** Order is set at issue time; ETA doesn't change once issued.
 - **No in-transit interception.** Combat only happens at stars.
 - **Stance has minor effect.** Mostly captured in D9. The field exists so v2 can add behavior without changing the data model.
 - **Shuffle-and-pair for 3+ sides.** Per the D9 decision; clean v1 semantics. Unpaired side sits out the turn.

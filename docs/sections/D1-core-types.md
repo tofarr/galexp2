@@ -47,7 +47,9 @@ What lives here:
   - `MissionKind`: StealTech, SabotageBuilding, SabotageShip, CounterEspionage, Observe
   - `BuildingKind`: Factory, ResearchLab, Farm, Market, Defense, Spaceport, Capital
   - `EventKind`: many variants (combat, diplomacy, discovery, etc.)
-- **Game-wide constants**: `MAX_PLAYERS = 10`, `MIN_PLAYERS = 2`, galaxy size presets (`SMALL`, `MEDIUM`, `LARGE`, `HUGE` → star counts and map dimensions), `STARTING_TECH_LEVEL`, `MAX_TURN`, `INITIAL_POPULATION`, `COMBAT_MAX_ROUNDS`, `MAX_GROUND_ROUNDS = 30`, `COUNCIL_INTERVAL = 25`, `SPY_PRODUCTION_INTERVAL = 10`, `BC_PER_TAX_POINT = 1` (1 bc per tax point per turn — the v1 scale used by D5.5 and D11.3), `MAX_EVENTS_IN_MEMORY = 200`, etc.
+  - `AiPersonalityTrait`: Aggressive, Expansionist, Technologist, Diplomat, Trader, Ruthless, Honorable (D3.4 race hints; mapped to D13.1 `StrategyKind` in `aiDefaultStrategy(race)`)
+  - `StrategyKind`: Aggressive, Builder, Technologist, Diplomat, Balanced (D13.1; player-selected at game start; narrower than the trait-level hints in D3.4)
+- **Game-wide constants**: `MAX_PLAYERS = 10`, `MIN_PLAYERS = 2`, galaxy size presets (`SMALL = 24`, `MEDIUM = 36`, `LARGE = 56`, `HUGE = 80` → star counts and map dimensions), `STARTING_TECH_LEVEL`, `MAX_TURN = 200`, `INITIAL_POPULATION`, `COMBAT_MAX_ROUNDS = 50` (cap on tactical-combat length; exceeded = both sides disengage with no winner), `MAX_GROUND_ROUNDS = 30`, `COUNCIL_INTERVAL = 25`, `SPY_PRODUCTION_INTERVAL = 10`, `BC_PER_TAX_POINT = 1` (1 bc per tax point per turn — the v1 scale used by D5.5 and D11.3), `CONQUEST_VICTORY_THRESHOLD = 0.80` (D14.1; 80% of habitable planets, no rival above 10%), `MAX_EVENTS_IN_MEMORY = 200`, `SPY_UPKEEP_PER_TURN = 1` (bc per spy per turn; D5.5 reads from this), `PLANET_BASE_TAX_INCOME = 1` (bc per planet per turn at taxRate=0 baseline; D5.5 scales by taxRate), `RECENTLY_CONQUERED_TURNS = 5` (D5.6 morale `recentlyConquered` window; `Planet.conqueredOnTurn` carries the timestamp), etc.
 
 Modeling decisions (locked in for v1):
 - IDs are nominal newtypes over `int`, not strings. Saves space; speeds map lookups; survives catalog reordering.
@@ -60,22 +62,22 @@ What lives here (record types):
 
 - **Catalog entries** (immutable reference data; values supplied by D3/D6/D7):
   - `Race` — id, name, traits, homeworldPlanetType, aiPersonalityHints, portraitRef.
-  - `Hull` — id, name, size, slotCount, baseHp, baseSpeed, baseSpace, baseWarpRange, baseCost.
+  - `Hull` — id, name, size, slotCount, baseHp, baseSpeed, baseSpace, baseWarpRange, baseCost, baseSupply, troopCapacity, prereqTech.
   - `Weapon` — kind, baseDamage, range, shots, accuracy, spaceCost, prereqTech.
   - `Special` — kind, effect description (small enum: ShieldCapacity, ArmorReduction, ECMPenalty, PointDefenseRate, …).
   - `Tech` — id, name, tree, level, cost, prereqs, effects (ADT).
-  - `Building` — kind, max level, prereqTech, baseEffect (see `BuildingEffect` ADT below).
+  - `Building` — kind, baseCost, buildIndustry, max level, prereqTech, baseEffect (see `BuildingEffect` ADT below).
 
 - **Mutable entities** (change during play):
-  - `Player` — id, raceId, isAI, aiPersonality, homeworldPlanetId, knownStarIds, knownPlanetIds, techs (acquired), currentResearch (Option<TechId>), treasury, relations (Map<PlayerId, Relation>), spies, treaties.
-  - `Planet` — id, starId, orbitIndex, type, size, richness, specials, population, maxPopulation, buildings, owner (Option<PlayerId>), garrison.
+  - `Player` — id, raceId, isAI, aiPersonality, homeworldPlanetId, knownStarIds, knownPlanetIds, techs (acquired), currentResearch (Option<TechId>), treasury, relations (Map<PlayerId, Relation>), spies, treaties, score (derived; see D14.4).
+  - `Planet` — id, starId, orbitIndex, type, size, richness, specials, population, maxPopulation, buildings, owner (Option<PlayerId>), garrison, conqueredOnTurn (Option<TurnId>; set on D10.5 conquest, consumed by D5.6 morale).
   - `Star` — id, x, y, spectralClass, planetIds, specials, owner (Option<PlayerId>; home star).
-  - `Ship` — designId, count, hp (current/max), experience.
+  - `Ship` — designId, count, hp (current/max), experience (v2-placeholder; see D9.6.3).
   - `Fleet` — id, ownerId, location (Either at StarId, or in-transit with from/eta/destination), ships, orders (e.g., destination, stance).
   - `ShipDesign` — id, ownerId, name, hullId, slotAssignments (list of (slotIndex, componentId)), specialIds, buildQueue.
   - `Relation` — level (int, -100..+100), modifiers (list).
   - `Treaty` — id, parties (Set<PlayerId>), kind, terms, signedOnTurn.
-  - `TradeRoute` — id, fromPlanetId, toPlanetId, ownerId, income (cached at end of D11.6 each turn; read by D5.5 the following turn).
+  - `TradeRoute` — id, fromPlanetId, toPlanetId, ownerId, income (cached at end of D11.6 each turn; read by D5.5 the following turn), active (bool; false when either endpoint conquered or unowned, set by D10.5 / end-of-turn cleanup).
   - `Spy` — id, ownerId, locationPlanetId, mission (Option<Mission>), detectionRisk.
   - `Mission` — kind, targetPlayerId, startedOnTurn.
   - `Event` — id, turn, kind, payload (variant per kind).
@@ -145,9 +147,9 @@ type GameState = {
 `GameOptions` is a small record holding the player's setup choices (galaxy size, race count, difficulty, etc.).
 
 Modeling decisions (locked in for v1):
-- `relations` is derived (rebuilt from `Player` relations and treaty-derived modifiers). Stored as a map keyed by ordered `(PlayerId, PlayerId)` pair; rebuilt each turn by the economy/diplomacy phase.
+- `relations` is derived (rebuilt from `Player` relations and treaty-derived modifiers). Stored as a map keyed by ordered `(PlayerId, PlayerId)` pair; rebuilt each turn by D11.1 (after drift, after treaty updates) so per-relation computed modifiers see the latest treaty state.
 - `events` is an append-only list, **trimmed** (not rebuilt) at the end of each turn by D4.2 to the last `MAX_EVENTS_IN_MEMORY = 200` entries (D1.1). Older events are serialized to disk on save and re-merged on load.
-- `score` is a derived per-player int recomputed by a D4 helper once per turn (after economy, before victory check) using the D14.4 formula. Both D11.5 (council vote count) and D14.4 (endgame score / time victory) read from this single source. This avoids the D11↔D14 circular dependency that would result from one computing the other.
+- `score` is a derived per-player int recomputed by a D4 helper **once per turn** (after economy, before victory check). The D4 helper computes `score[player]` using the formula in D14.4 (`computeScore(player, state)` — pure function); both D11.5 (council vote count) and D14.4 (time-victory / end-of-game ranking) read from the cached `state.score` field. D14.4 owns the formula; D4 owns the recomputation side-effect. This avoids a D11↔D14 circular dependency.
 - The map keys use Quint's `(p, q) -> Relation` syntax; ordered to canonicalize `(p, q)` with `p < q`.
 
 ### Event-kind index (cross-section)
@@ -176,7 +178,7 @@ Every `Event` flowing through `state.events` belongs to one of these kinds. This
 | `NoEncounter` | D8.4 | (telemetry) |
 | `Encounter` | D8.4 | D4 → D9 |
 | `CombatHit` / `CombatMiss` / `CombatCrit` / `ShipDestroyed` / `Retreat` | D9 | P10 (combat playback) |
-| `BattleResolved` | D9.6 | D14.5 (stats), P10 |
+| `BattleResolved` | D9.6 | D14.5 (stats), P10 — payload `{ star, winner: Option<FleetId>, loser: Option<FleetId>, outcome: Won | Drawn, turn }` (D9.6.5) |
 | `GroundRound` | D10.2 | P11 (ground combat playback) |
 | `Pillage` | D10.4 | P11 |
 | `PlanetConquered` | D10.5 | P11, D14.5 (stats) |
@@ -195,6 +197,15 @@ Every `Event` flowing through `state.events` belongs to one of these kinds. This
 | `GameEnded` | D14.5 | A4 (stops game loop) |
 
 New event kinds added during the spec phase must be appended to this table.
+
+### `Event` vs `CombatEvent` relationship
+
+Two event types coexist in v1:
+
+- **`Event`** (this table's kinds, in `state.events: list<Event>`) is the canonical "what happened this game" log. Its `kind` field is one of the variants above; the payload is `kind`-specific (e.g., `TechAcquired` carries `techId`, `BattleResolved` carries the payload documented above).
+- **`CombatEvent`** (D9.3–D9.5) is the per-shot/per-round playback stream consumed by P10 for tactical-combat animation. Each combat round emits a list of `CombatEvent`s that *describe* the round; at the end of the battle, a single `BattleResolved` `Event` is appended to `state.events` to record the outcome.
+
+Both flow from D9 during a `combatResolution` phase; P10 reads both (combat events for animation, BattleResolved for the result).
 
 ## Dependency graph (within D1)
 
@@ -262,6 +273,12 @@ The principle: model what's needed for v1; leave room (Quint's variant types are
 - **Map vs. list for entity collections?** Decision: maps keyed by id. O(1) lookup; serialization-friendly.
 - **Aggregates stored or computed?** Decision: computed. Stored aggregates drift from source-of-truth; Quint views make the computation cheap to express.
 - **Event log cap?** Decision: cap last 200 events in memory; older events are flushed to disk on save. (Memory bound is a quality-of-implementation choice; could be configurable later.)
+- **`COMBAT_MAX_ROUNDS` value?** Resolved: `50` rounds cap. If exceeded, both sides disengage (no winner). D9.6.5 emits `BattleResolved` with `outcome = Drawn` and `winner = loser = None`.
+- **`MAX_TURN` value?** Resolved: `200` (cited from D14.4; propagated here for completeness).
+- **Galaxy-size star counts?** Resolved: `SMALL=24, MEDIUM=36, LARGE=56, HUGE=80` (MoO-ish; tunable).
+- **Per-spy upkeep?** Resolved: `SPY_UPKEEP_PER_TURN = 1` bc per spy per turn (D5.5 reads this; constant lives here).
+- **Per-planet base tax income?** Resolved: `PLANET_BASE_TAX_INCOME = 1` bc per planet per turn at `taxRate = 0`; D5.5 scales by `taxRate / 100`.
+- **`CONQUEST_VICTORY_THRESHOLD`?** Resolved: `0.80` (80% of habitable planets + no rival above 10%); owned here, consumed by D14.1.
 
 No open questions remain that block starting the Quint spec for D1.1.
 

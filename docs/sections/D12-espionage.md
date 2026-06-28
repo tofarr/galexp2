@@ -131,7 +131,7 @@ type IntelEvent =
 
 Intel accumulates in `Player.intelLedger: Map<PlayerId, PlayerIntel>` — a record of what each player knows about each other. Used by:
 - D13 (AI) — to make informed decisions.
-- P13 (Espionage screen) — display what you know.
+- P8 (Espionage screen) — display what you know.
 - D11 (Diplomacy) — to inform trade offers ("I know they have Tech X, so I'll offer Tech Y in trade").
 
 **StealTech does NOT actually transfer the tech.** It's intel only — you know the target has it, but you don't get it for free. To actually get the tech, you'd use D6.5's `receiveTech` via diplomacy (e.g., trade for it).
@@ -219,7 +219,7 @@ D12 has small, well-defined imports.
 | D11 Diplomacy | Reads `IntelEvent`s to inform offers (via D13) |
 | D13 AI | Assigns spy missions, reads intel ledger |
 | A1 Store | Calls D12 |
-| P13 Espionage | Renders missions, intel ledger |
+| P8 Espionage | Renders missions, intel ledger |
 
 ## Quint-spec-sized leaves (the actual implementation units)
 

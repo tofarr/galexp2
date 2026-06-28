@@ -59,7 +59,7 @@ type AIInput = {
 ```
 type AIOutput = {
   commands: List<Command>,                   // ready to be applied by D4
-  reasoning: List<string>,                   // debug log (used by P14 AI Inspector)
+  reasoning: List<string>,                   // debug log (used by P13 AI Inspector)
 }
 ```
 
@@ -71,6 +71,18 @@ type Personality = {
   weights: WeightVector,
   aiMemory: AIMemory,                        // persistent across turns
 }
+
+// Mapping from D3.4's `Race.aiPersonalityHints: Set<AiPersonalityTrait>`
+// (7 traits: Aggressive, Expansionist, Technologist, Diplomat, Trader, Ruthless, Honorable)
+// to D13.1's `StrategyKind` (5 kinds). v1 ships a simple lookup:
+//   "if Aggressive or Ruthless in hints → Aggressive
+//    elif Expansionist or Trader in hints → Builder
+//    elif Technologist in hints → Technologist
+//    elif Diplomat or Honorable in hints → Diplomat
+//    else → Balanced"
+// The human player can override this at game start by picking a different
+// strategy in the AI setup panel (P1).
+aiDefaultStrategy(race) = ...
 
 type WeightVector = {
   military: float,                           // 0..1
@@ -230,7 +242,7 @@ D13 imports from every other section (it's the orchestrator of AI behavior).
 |---|---|
 | D4 Turn Cycle | Calls D13 to generate AI commands |
 | A1 Store | Calls D13 |
-| P14 AI Inspector | Displays AI reasoning logs |
+| P13 AI Inspector | Displays AI reasoning logs |
 
 ## Quint-spec-sized leaves (the actual implementation units)
 

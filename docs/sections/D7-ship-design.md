@@ -46,26 +46,28 @@ type Hull = {
   baseSpace: int,                // total component space available
   baseWarpRange: int,            // warp range per ship of this hull (parsecs); replaces CombatStats.range
   baseCost: int,                 // production cost in industry
+  baseSupply: int,               // bc/turn maintenance per ship (D5.5 reads this; Fighter=1, Cruiser=3, Battleship=8, Titan=20)
+  troopCapacity: int,            // ground troops carried per ship (D10.1 reads via ship.design.hull.troopCapacity; Transport=N, others=0)
   prereqTech: Option<TechId>,    // hulls unlocked by tech
 }
 ```
 
 v1 catalog (~10 hulls, MoO-style):
 
-| Hull | Size | Slots | Base HP | Base Speed | Warp Range | Notes |
-|---|---|---|---|---|---|---|
-| Fighter | Small | 1 | 5 | 30 | 5 | fast, fragile |
-| Bomber | Small | 2 | 8 | 25 | 4 | carries bombs against big ships |
-| Destroyer | Medium | 4 | 20 | 20 | 4 | versatile |
-| Cruiser | Medium | 6 | 35 | 18 | 3 | workhorse |
-| Battleship | Large | 8 | 60 | 14 | 3 | heavy combat |
-| Dreadnought | Large | 10 | 100 | 12 | 2 | battleship+ |
-| Titan | Huge | 14 | 180 | 10 | 2 | very rare |
-| Transport | Medium | 0 | 25 | 18 | 3 | carries troops; no weapons |
-| Colony Ship | Medium | 0 | 25 | 16 | 4 | has Colony Module slot |
-| Doomship | Huge | 18 | 300 | 8 | 1 | ultra-endgame |
+| Hull | Size | Slots | Base HP | Base Speed | Warp Range | Base Cost | Base Supply | Troop Capacity | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Fighter | Small | 1 | 5 | 30 | 5 | 10 | 1 | 0 | fast, fragile |
+| Bomber | Small | 2 | 8 | 25 | 4 | 15 | 1 | 0 | carries bombs against big ships |
+| Destroyer | Medium | 4 | 20 | 20 | 4 | 25 | 1 | 0 | versatile |
+| Cruiser | Medium | 6 | 35 | 18 | 3 | 40 | 3 | 0 | workhorse |
+| Battleship | Large | 8 | 60 | 14 | 3 | 80 | 8 | 0 | heavy combat |
+| Dreadnought | Large | 10 | 100 | 12 | 2 | 130 | 12 | 0 | battleship+ |
+| Titan | Huge | 14 | 180 | 10 | 2 | 220 | 20 | 0 | very rare |
+| Transport | Medium | 0 | 25 | 18 | 3 | 30 | 2 | 100 | carries troops; no weapons |
+| Colony Ship | Medium | 0 | 25 | 16 | 4 | 35 | 2 | 0 | has Colony Module slot |
+| Doomship | Huge | 18 | 300 | 8 | 1 | 500 | 50 | 0 | ultra-endgame |
 
-(Exact numbers are placeholders for now; v1 spec will pin them after a few playtests.) The warp range column gives each hull its own per-ship range, replacing the previous "every ship has range=1" placeholder.
+(Exact numbers are placeholders for now; v1 spec will pin them after a few playtests.) The warp range column gives each hull its own per-ship range, replacing the previous "every ship has range=1" placeholder. `baseSupply` feeds D5.5 maintenance; `troopCapacity` feeds D10.1 invasion strength — both are 0 for combat-only hulls and > 0 for Transport.
 
 ### D7.2 → Weapon catalog
 

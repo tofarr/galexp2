@@ -107,9 +107,15 @@ score(player) =
 
 `MAX_TURN = 200` (D1.1 constant).
 
-At MAX_TURN, the player with the highest score wins. Ties broken by who reached the score first (turn of last score update).
+At MAX_TURN, the player with the highest score wins. If multiple players
+have the same score, it's a **draw** — no winner; show as "draw" in the
+post-game screen (the earlier "ties broken by turn of last score update"
+wording was a draft artifact and is now superseded; see D14's
+"Resolved decisions" entry).
 
-If MAX_TURN is reached and multiple players have the same score, it's a tie (no winner; show as "draw" in post-game).
+Note: `COMBAT_MAX_ROUNDS = 50` (D1.1) caps individual tactical combats,
+not the overall game. A combat that exceeds it ends with `outcome =
+Drawn` (D9.6.5) but does not end the game.
 
 ### D14.5 → End-game state
 
@@ -139,7 +145,9 @@ PlayerStats {
 }
 ```
 
-`battlesWon` and `battlesLost` are populated by counting `BattleResolvedEvent`s from D9.6 across the game's event log (plus persisted events flushed to disk). A win is counted for the player whose fleet is `winner`; a loss for the player whose fleet is `loser`. (Draws — both sides destroyed — count as a loss for each side.)
+`battlesWon` and `battlesLost` are populated by counting `BattleResolvedEvent`s from D9.6 across the game's event log (plus persisted events flushed to disk). For each event:
+- `outcome = Won`: increment `battlesWon` for the player owning `event.winner.unwrap()`, and `battlesLost` for the player owning `event.loser.unwrap()`.
+- `outcome = Drawn`: increment `battlesLost` for *both* sides' players (no winner is credited).
 
 Emits `GameEndedEvent { winner, victoryKind, stats, finalTurn }`. The orchestrator (D4) checks for this event at the end of `step` and stops the game loop.
 
@@ -171,8 +179,8 @@ D14 has minimal imports — it's a leaf consumer of game state.
 |---|---|
 | D4 Turn Cycle | Calls D14 once per turn (after diplomacy, before end-of-turn cleanup) |
 | A4 Turn Manager | Stops game loop on `GameEndedEvent` |
-| P8 End-Game Screen | Reads `EndGameState` |
-| P15 Stats / Hall of Fame | Persists historical `PlayerStats` across games |
+| P12 End-Game Summary | Reads `EndGameState` (end-of-game view: who's the winner, victory kind, final scores) |
+| P14 Hall of Fame | Persists historical `PlayerStats` across games |
 
 ## Quint-spec-sized leaves (the actual implementation units)
 
@@ -206,8 +214,10 @@ Total ~250 lines of Quint. The four checks are small (each ~30-50 lines); the or
 - **Score formula**: planets + techs + population + fleet + treasury.
 - **No alliance or transcendence victory** in v1.
 - **Ties in score**: declared a draw (no winner).
-- **`Player.score` is a derived field on `GameState`** (D1.3), recomputed once per turn by a D4 helper. Both D11.5 council voting and D14.4 endgame scoring read from this single field. This breaks the D11↔D14 circular dependency.
-- **`BattleResolvedEvent` from D9.6** populates `battlesWon` / `battlesLost` in D14.5's `PlayerStats`.
+- **`Player.score` is a derived field on `GameState`** (D1.3), recomputed once per turn by a D4 helper that calls `computeScore` (D14.4's pure function). Both D11.5 council voting and D14.4 endgame scoring read from this single field. **Ownership**: D14.4 owns the formula; the D4 helper owns the side-effect of writing `state.score[player]`. This breaks the D11↔D14 circular dependency.
+- **`BattleResolvedEvent` from D9.6** populates `battlesWon` / `battlesLost` in D14.5's `PlayerStats`. The event uses `Option<FleetId>` for `winner`/`loser` and an `outcome: Won | Drawn` discriminator; D14.5 counts `Won` as one win for the `winner`'s player and one loss for the `loser`'s player, and `Drawn` as one loss for each side's player.
+- **Ties at `MAX_TURN`**: declared a draw (no winner). The earlier "ties broken by turn of last score update" wording is superseded.
+- **Council vote count** uses the same `state.score[player]` field as D14.4's endgame score. The D11.5 vs D14.4 conflict is resolved: both read the cached value; neither computes the other. The implication that score includes treasury/fleet strength is acceptable for v1 council voting because the council is a soft diplomatic mechanism (not a strict ranking); D14.4's end-of-game tie-breaks apply the same ranking. v2 may separate council `voteCount` from end-of-game `score` for balance.
 
 ## Open questions for D14
 
