@@ -108,7 +108,7 @@ Each treaty has effects:
 - **Alliance**: mutual defense obligation. If either is attacked, the other declares war on the aggressor automatically. +20 relation.
 - **PeaceTreaty**: ends war; restores AtPeace; -25 relation if forced (conquest-driven).
 - **Subjugation**: vassal is automatically set to `AtWar` with any suzerain's enemy; vassal cannot independently declare war; vassal pays 10% of gross income to suzerain each turn (applied as a maintenance line in D5.5). v2 could add suzerain diplomacy on behalf of vassals.
-- **ResearchAgreement**: each player gets 50% of the other's *unspent* research. Transfer is applied as a maintenance line in D5.5 after D6.3 has deducted the cost of any tech-acquired this turn (so the total is conserved).
+- **ResearchAgreement**: each player gets 50% of the other's *unspent* research. Transfer is applied as a maintenance line in D5.5 *after* D6.3 has deducted the cost of any tech-acquired this turn (so the total is conserved — "unspent" here means "the leftover after D6.3's deduction"). The two phrasings ("unspent" in D11.2 vs "after tech-acquisition deduction" in D5.5) describe the same operation; D5.5 is the precise one.
 
 **Subjugation**: v1 includes basic vassal mechanics with the above mechanical effects. v2 could add suzerain diplomacy on behalf of vassals and diplomatic-relation rules for subjugated races.
 
@@ -224,7 +224,18 @@ income = baseTrade
 
 baseTrade = 2  // bc per turn per route (v1 default; tunable)
 techLevelBonus(player, tree) = 1.0 + 0.10 × techLevel(player, tree)
+
+// distancePenalty uses the *star* coordinates (D1.2's `Star.x, Star.y`), not planet coordinates
+// (planets don't carry coordinates in v1 — only `Star` does). The "parsec" is Euclidean
+// distance between the planets' parent stars:
+distancePenalty(fromPlanet, toPlanet) =
+    max(0.5, 1.0 - 0.01 × euclideanDistance(
+        parentStar(fromPlanet, state),
+        parentStar(toPlanet,   state),
+    ))
 ```
+
+`parentStar(planet, state)` is a tiny helper: `state.stars[planet.starId]` (since D1.2's `Planet` carries `starId`).
 
 Trade requires:
 - Both planets owned (not native/uncolonized).

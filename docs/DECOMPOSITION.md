@@ -140,8 +140,9 @@ Per-section doc: [`sections/D7-ship-design.md`](sections/D7-ship-design.md). Fiv
 - D8.3 Fuel/warp range limits.
 - D8.4 Arrival & encounter detection — when a fleet arrives at a star, detect contact.
 - D8.5 Fleet merge & split.
+- D8.6 Colonization — added in v1 (see REVIEW-NOTES 10.12); a fleet with a Colony Ship arriving at an uninhabited planet claims it.
 
-Per-section doc: [`sections/D8-fleet-movement.md`](sections/D8-fleet-movement.md). Four Quint files: `orders.qnt`, `movement.qnt`, `fleetOps.qnt`, `arrival.qnt`. D8.2 reframed as "distance & range" (Euclidean warp in v1; warp lanes deferred to v2). D8.4 enforces "one fleet per player-side at each star" before emitting Encounter events to D9 — D9 only ever sees pairwise encounters.
+Per-section doc: [`sections/D8-fleet-movement.md`](sections/D8-fleet-movement.md). Five Quint files: `orders.qnt`, `movement.qnt`, `fleetOps.qnt`, `arrival.qnt`, `colonization.qnt`. D8.2 reframed as "distance & range" (Euclidean warp in v1; warp lanes deferred to v2). D8.4 enforces "one fleet per player-side at each star" before emitting Encounter events to D9 — D9 only ever sees pairwise encounters. D8.6 was added to close the in-game colonization loop (homeworlds are D3.5's job; everything else is D8.6's).
 
 ---
 
@@ -156,6 +157,7 @@ Per-section doc: [`sections/D8-fleet-movement.md`](sections/D8-fleet-movement.md
 - D9.4 Specials in combat — shields, ECM, point defense, fighter screens.
 - D9.5 Retreat mechanics.
 - D9.6 Combat outcome — survivors, XP awarded, scrap.
+- D9.7 Boarding — **v2 placeholder only** (see REVIEW-NOTES 9.4); D9 currently reserves this slot for a boarding mechanic, but D9's spec is intentionally scoped to v1 (D9.1–D9.6). The placeholder is recorded here so v2 contributors know where to add it.
 
 This section is large enough to warrant its own detailed decomposition doc — see `docs/sections/D9-space-combat.md` (when written).
 

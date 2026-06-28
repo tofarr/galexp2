@@ -167,6 +167,7 @@ For v2 experiments, we can swap in richer formulas without touching callers — 
 - **Boarding**: out of v1. Reserved as a possible D9.7.
 - **Stellar converters / planet busters**: out of v1. Optional v2 chunks.
 - **Initiative is per-ship** in v1 (sorted by computer, ties by hull size). Per-stack initiative is v2.
+- **`CombatStats.speed` is cosmetic in v1** — it feeds the fleet speed display in P3/P6 but does not affect initiative (computer stat does), movement (D8.2 uses `Hull.baseWarpRange`), or combat outcomes. v2 may reintroduce it for retreat sequencing.
 - **Stance is reserved data** — D9 does not read it in v1; D9.2 targeting AI consumes it in v2.
 - **D9.6.3 (XP) and D9.6.4 (scrap)** deferred to v2. Chunks defined for spec completeness; no v1 effect.
 - **`BattleResolvedEvent`** is emitted by D9.6 at combat end with `{star, winner: Option<FleetId>, loser: Option<FleetId>, outcome: Won | Drawn, turn}` (D9.6.5; D1 event-kind index); consumed by D14.5 for end-game stats and by P10 for UI feedback. `Option` types let D9 represent draws (both sides destroyed or `COMBAT_MAX_ROUNDS` exceeded) without a sentinel value.

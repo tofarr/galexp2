@@ -35,14 +35,16 @@ The chunks are called in roughly this order within the economy phase (D4 calls D
 
 ```
 economy(s, cmds, ctx) =
-    foodIndustryResearch(s, ctx)               // D5.2 + D5.3 + D5.4 (gross production)
-  .then(morale(s, ctx))                       // D5.6
+    // Morale is computed first because D5.3 (industry) scales its output by morale/100.
+    // Without this ordering, D5.3 would silently use the previous turn's morale.
+    morale(s, ctx)                            // D5.6
+  .then(foodIndustryResearch(s, ctx))         // D5.2 + D5.3 (×morale/100) + D5.4
   .then(population(s, ctx))                   // D5.1 (uses food + morale)
   .then(incomeAndMaintenance(s, cmds, ctx))   // D5.5 (uses tax slider)
   .then(productionQueues(s, cmds, ctx))       // D5.7 (consumes industry)
 ```
 
-The "tax slider" is a per-player command (`SetTaxRate(int)`) applied in D5.5. D5.4 produces *gross* research; D5.5 splits it into net research + income via the slider.
+The "tax slider" is a per-player command (`SetTaxRate(int)`) applied in D5.5; `taxRate` is clamped to `[TAX_RATE_MIN, TAX_RATE_MAX]` and defaults to `TAX_RATE_DEFAULT` (D1.1). D5.4 produces *gross* research; D5.5 splits it into net research + income via the slider.
 
 ## Recursive decomposition
 
@@ -59,7 +61,7 @@ Inputs:
 Logic:
 - If `food >= 0`: population grows. Growth rate = `baseGrowth * (1 + morale/100) * race.totalModifiers.growthMod`, capped at `planet.maxPopulation`.
 - If `food < 0` and race is Lithovore: no starvation (Lithovore eats minerals, not food). Emit `PopulationStableEvent`.
-- If `food < 0` (non-Lithovore): population starves. Loss rate = `|food| / 2`. Emit `StarvationEvent { planet, lostPopulation }`.
+- If `food < 0` (non-Lithovore): population starves. Loss rate = `|food| / 2`. Emit `StarvationEvent { planet, populationLost }` (matches D10.4's `PillageEvent` payload naming convention).
 - If `morale < 20` for several consecutive turns: emit `RevoltRiskEvent { planet, morale }`. v1: the event is logged only — ownership does not flip. (D5.6 just computes the morale value; D5.1 owns the threshold check and event emission.) v2 adds the actual ownership flip.
 
 Emits: `PopulationGrewEvent`, `StarvationEvent`, `PopulationStableEvent`, `RevoltRiskEvent`.
@@ -205,7 +207,7 @@ else:
 ```
 
 `queueItemCost`:
-- `BuildBuilding(kind)` → `BuildingKind.cost(kind)` (lookup table in D7 spec; ~10 bc × level by default).
+- `BuildBuilding(kind)` → `state.buildings[kind].baseCost × BUILDING_LEVEL_MULTIPLIER(state.buildings[kind].level) × count` where `count` defaults to 1 (the v1 cost formula from D1.1). The `level` field on `Building` is `1` for new builds.
 - `BuildShip(designId, count)` → `count × design(state, designId).cost` (`CombatStats.cost` from D7.5).
 
 The completed ship is added to a designated build fleet at the planet
@@ -255,12 +257,12 @@ D5 has the most dependencies of any single domain section (after D4).
 | D4 Turn Cycle | Calls D5 once per turn |
 | D6 Research | Reads `grossResearch` from D5.4 (already in `Player.researchThisTurn`) |
 | D9 Space Combat | Reads `Fleet.supplyCost` from D5.5 (no direct call) |
-| D14 Victory | Reads `Player.treasury`, `Player.totalProduction` for score |
+| D14 Victory | Reads `Player.treasury` for score (production is not in the v1 score formula — see REVIEW-NOTES 6.7/8.3; if v2 adds production, it would read the per-turn gross via `state.score` after D4's recompute) |
 | A1 Store | Calls D5 chunks |
 | P4 Planet Screen | Displays D5 outputs (food/industry/research/morale) |
 | P5 Research Screen | Reads research progress (D6 ultimately) |
 | P9 Production Summary | Reads D5.7 queue state |
-| P12 Council | Reads `Player.totalProduction` for vote weight |
+| P12 Council | Reads `state.score[player]` (D1.3, D14.4) for vote weight — *not* `Player.totalProduction` directly (production flows through D14.4 into the cached score) |
 
 ## Quint-spec-sized leaves (the actual implementation units)
 

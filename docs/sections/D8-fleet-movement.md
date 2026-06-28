@@ -33,6 +33,7 @@ Five top-level chunks lifted from `DECOMPOSITION.md` (D8.2 reframed):
 - **D8.3 Movement** — advance in-transit fleets one turn; compute new arrivals.
 - **D8.4 Arrival & encounter detection** — auto-merge same-owner fleets at each star; pair sides for D9.
 - **D8.5 Fleet merge & split** — pure operations on fleet records (used by D8.4 and player commands).
+- **D8.6 Colonization** (added in v1 to address REVIEW-NOTES 10.12) — when a fleet with a Colony Ship (`Hull.Colony Ship` or any ship with `Special.ColonyModule`) and ≥1 colonist reaches an *uninhabited* planet at a star with no other fleet, the planet's `owner` flips to the player's id, `population` is seeded to `INITIAL_POPULATION`, and `PlanetColonizedEvent` is emitted. If multiple colonizers arrive at the same planet in the same turn, the first-arriving fleet claims it.
 
 ## Recursive decomposition
 
@@ -120,7 +121,7 @@ The output of D8.4 is a list of events that D4 (Turn Cycle) hands to D9:
 type FleetEvent =
   | Arrived(fleet: FleetId, at: StarId, onTurn: int)
   | NoEncounter(star: StarId)
-  | Encounter(star: StarId, sideA: FleetId, sideB: FleetId)
+  | Encounter(star: StarId, sideAId: FleetId, sideBId: FleetId)   // naming matches D1.2's CombatEvent (sideAId/sideBId)
 ```
 
 The "one fleet per player-side at the star" guarantee is what D9's contract requires. D8.4 is the only place this guarantee is produced.

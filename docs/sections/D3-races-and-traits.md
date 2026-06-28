@@ -94,13 +94,11 @@ type Modifier =
   | Diplomacy(int)               // flat bonus to relation changes
 
   // Espionage (D12)
-  | SpyDetection(float)          // multiplier on detection chance (passive — "easier to spot others' spies")
+  | SpyDetection(float)          // multiplier applied to **defending** player's detection chance — the player with the trait detects spies on their planets more easily. A value < 1.0 makes the owner *worse* at detecting; 1.0 is neutral. (The trait's phrasing as "harder to detect own spies" is misleading — see the table footnote for `Stealthy`.)
   | CounterEspionage(int)        // flat bonus to counter-espionage skill (D12.5)
 
-  // Population / colonization
+  // Population
   | GrowthMod(float)             // multiplier on population growth rate (D5.1)
-  | ColonizationSpeed(float)
-  | MaxColonies(int)
 
   // Morale
   | Morale(int)                  // flat bonus to base morale (D5.6)
@@ -120,24 +118,24 @@ type Modifier =
 Each `Trait` value has a fixed list of modifiers, defined once in the spec:
 
 ```
-traitModifiers(HyperExpansion) = { ColonizationSpeed(1.50), MaxColonies(2) }
 traitModifiers(Militaristic)   = { GroundAttack(1), GroundDefense(1), ShipAttack(1) }
 traitModifiers(Toltec)         = { Diplomacy(2) }
 traitModifiers(Cybernetic)     = { ResearchEfficiency(1.20), ShipDefense(1) }
-traitModifiers(Subterranean)   = { Morale(1) }                          // D10 reads this for ground combat
+traitModifiers(Subterranean)   = { Morale(1), GroundDefense(1) }        // D10.3 reads `GroundDefense` AND skips surrender check (data-driven via the trait; see D10.3)
 traitModifiers(Lithovore)      = { GrowthMod(1.0) }                     // D5.1 reads "no food dependence" via separate flag
 traitModifiers(Skilled)        = { ResearchEfficiency(1.10), IndustryProduction(1.10) }
 traitModifiers(Versatile)      = { FoodProduction(1.10), IndustryProduction(1.10), ResearchEfficiency(1.10) }
 traitModifiers(Flight)         = { ShipSpeed(1), ShipDefense(1) }
 traitModifiers(Warrior)        = { ShipAttack(1), GroundAttack(1) }
-traitModifiers(Stealthy)       = { SpyDetection(0.85) }                 // passive: harder to detect own spies
+traitModifiers(Stealthy)       = { SpyDetection(0.85) }                 // D12.5 reads this as: Stealthy owner's own spy detection chance (i.e., detecting *enemy* spies on their own planets) is *reduced* by 15%. NOTE: this is the *opposite* of the natural reading of "easier to spot others' spies" — the original D3.2 wording was inverted; v1 keeps the inverted semantic for behavioral consistency with MoO. D12.5 documents the meaning.
 traitModifiers(Repulsive)      = { Diplomacy(-2) }
 traitModifiers(Industrial)     = { IndustryProduction(1.20) }
 traitModifiers(Creative)       = { ResearchEfficiency(1.15) }
 traitModifiers(Honorbound)     = { Morale(2), Pillage(-0.05) }          // Pillage less aggressively
 traitModifiers(Telepathic)     = { CounterEspionage(2) }
 traitModifiers(Erudite)        = { ResearchEfficiency(1.20) }
-... // ~16 traits total (this list is illustrative; final catalog pinned at spec phase)
+traitModifiers(Tolerant)       = { Diplomacy(1) }                        // gain positive relations 1.0× faster with non-aligned races; was missing from prior drafts
+// (16 traits total — see D1.1 for the canonical catalog)
 ```
 
 The D3.1 race catalog uses trait names that must each have an entry in this
@@ -155,13 +153,18 @@ And then apply them where the formula lives:
 ```
 // in D5 (economy)
 food = baseFood * totalModifiers(race).foodProduction
+
+// in D12.5 (espionage detection) — applies to the *defending* player's modifier
+detectionChance = baseDetectionChance * totalModifiers(defendingPlayer).spyDetection
 ```
 
 Modeling decisions (locked in for v1):
 - Modifiers are **summed, not multiplied**. Two `+1 ShipAttack` traits give `+2`, not `+1×1=+1`. Simpler reasoning; matches MoO's behavior.
-- Each trait is a **named constant**, not a numerical code. Tests read `traitModifiers(HyperExpansion)` directly.
+- Each trait is a **named constant**, not a numerical code. Tests read `traitModifiers(Subterranean)` directly.
 - Modifiers form an **open ADT**. New modifier kinds are added as we discover we need them; existing consumers don't need to change.
 - The `Modifier` ADT is defined in D3.2 and imported by every consumer. **D3.2 is the single source of truth** for what modifiers exist.
+- `ColonizationSpeed` and `MaxColonies` are *not* in the v1 ADT — v1 has no consumer (colonization is a one-time D8.6 event, not a repeated rate). Re-add in v2 if a colonization-rate mechanic is introduced. `HyperExpansion` is dropped for the same reason.
+- v1 ties do not have a `Surrender` flag — `Subterranean`'s "no surrender until fully eliminated" is data-driven via D10.3 reading the `Subterranean` trait directly (alongside its `GroundDefense(1)` modifier). See D10.3.
 
 ### D3.3 → Race-specific tech affinities
 
