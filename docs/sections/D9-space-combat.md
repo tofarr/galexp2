@@ -30,7 +30,7 @@ We go one level deeper. Each sub-chunk is *almost* leaf-sized: it can be specifi
 ### D9.1 → Combat setup
 
 - **D9.1.1 Pre-battle validation** — both fleets exist, are at the same star, have positive ships. (Pure check; cheap.)
-- **D9.1.2 Initiative ordering** — sort ships by computer stat, ties broken by ship size. **Per-ship** initiative (v1 simplification vs. MoO's per-stack initiative; v2 may restore per-stack). Pure sort.
+- **D9.1.2 Initiative ordering** — sort ships by computer stat, ties broken by ship size. **Per-ship** initiative (v1 simplification vs. MoO's per-stack initiative; v2 may restore per-stack). Pure sort. HP and damage are tracked per *stack* entry (D1.2's `Fleet.ships`); when a stack's `hpCurrent` reaches 0 the entire stack is destroyed (its `count` is removed from `ships`). Within a stack, individual ships fire in a fixed sub-order (stack insertion order; first inserted fires first) so per-ship initiative is deterministic even though damage pools at stack granularity.
 - **D9.1.3 Stack positioning** — assign starting coordinates on the tactical map. Pure projection from fleet composition.
 
 ### D9.2 → Targeting AI
@@ -70,7 +70,7 @@ below. Boarding-related conditions are v2 (D9.7) and not active in v1.
   v2 may add engines/boarding/trap conditions.
 - **D9.5.2 Retreat order sequencing** — who retreats first. **v1 simplification**: only one side can retreat per round (the player who issues the retreat command on their turn); the other side chooses to pursue or hold.
 - **D9.5.3 Damage-during-retreat** — pursuing fleet gets free shots. **v1 simplification**: one volley from the pursuer at the retreating fleet before disengagement.
-- **D9.5.4 Destination** — retreat to a star within warp range. **v1 simplification**: the retreating fleet picks the nearest star in `state.stars` within its `warpRange` (D8.2); ties broken randomly via the deterministic `ctx.rng`. The destination is then handed to D8 as a normal `MoveTo` order.
+- **D9.5.4 Destination** — retreat to a star within warp range. **v1 simplification**: the retreating fleet's destination is computed by D8's `pickRetreatDestination(fleet, state, rng)` helper (D8.7) and handed back to D9 as a `StarId`. D9 emits a `RetreatOrder { fleet, destination }` event that D8's `contactResolution` phase picks up on the next turn and applies as a normal `MoveTo`.
 
 ### D9.6 → Combat outcome
 

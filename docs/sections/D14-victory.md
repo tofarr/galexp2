@@ -146,9 +146,11 @@ PlayerStats {
 }
 ```
 
-`battlesWon` and `battlesLost` are populated by counting `BattleResolvedEvent`s from D9.6 across the game's event log (plus persisted events flushed to disk). For each event:
+`battlesWon` and `battlesLost` are read from `Player.battlesWon` and `Player.battlesLost` (D1.2 maintained fields). D9.6.5 increments these at combat end, not D14.5:
 - `outcome = Won`: increment `battlesWon` for the player owning `event.winner.unwrap()`, and `battlesLost` for the player owning `event.loser.unwrap()`.
 - `outcome = Drawn`: increment `battlesLost` for *both* sides' players (no winner is credited).
+
+The fields are maintained (not derived from the event log) so end-of-game stats work even after the in-memory event log has been trimmed past `MAX_EVENTS_IN_MEMORY = 200` (D1.1).
 
 Emits `GameEndedEvent { winner, victoryKind, stats, finalTurn }`. The orchestrator (D4) checks for this event at the end of `step` and stops the game loop.
 
@@ -165,6 +167,8 @@ D14.4 (score) ───────────────────┘      
 
 D14.5 is called only when one of D14.1-D14.4 detects a winner.
 
+**Simultaneous victories**: `checkAllVictories` checks D14.1 → D14.2 → D14.3 → D14.4 in that order. The first check that returns a winner ends the game. So if two players meet different victory conditions on the same turn (e.g., player A meets conquest while player B meets tech victory), the conquest check wins. This is **first-match-wins** — the simplest tie-break rule. A draw at MAX_TURN (D14.4) is handled separately: no winner, post-game screen shows "draw."
+
 ## Cross-section dependencies
 
 | Depends on | What we need | Where it lives |
@@ -172,7 +176,7 @@ D14.5 is called only when one of D14.1-D14.4 detects a winner.
 | D1 Core Types | `Player`, `GameState`, `Planet`, `Event`, `EndGameState`, `PlayerStats` | D1.2, D1.3 |
 | D6 Research | (read-only) — `Player.techs` for tech victory | D6 |
 | D11 Diplomacy | (read-only) — D11.5's `GalacticEmperorVictoryEvent` | D11.5 |
-| D9 Space Combat | (read-only) — `BattleResolvedEvent`s in `state.events` for `battlesWon`/`battlesLost` stats | D9.6 |
+| D9 Space Combat | (read-only) — increments `Player.battlesWon` / `Player.battlesLost` at combat end; D14.5 reads these fields | D9.6 |
 
 D14 has minimal imports — it's a leaf consumer of game state.
 
@@ -216,7 +220,7 @@ Total ~250 lines of Quint. The four checks are small (each ~30-50 lines); the or
 - **No alliance or transcendence victory** in v1.
 - **Ties in score**: declared a draw (no winner).
 - **`Player.score` is a derived field on `GameState`** (D1.3), recomputed once per turn by a D4 helper that calls `computeScore` (D14.4's pure function). Both D11.5 council voting and D14.4 endgame scoring read from this single field. **Ownership**: D14.4 owns the formula; the D4 helper owns the side-effect of writing `state.score[player]`. This breaks the D11↔D14 circular dependency.
-- **`BattleResolvedEvent` from D9.6** populates `battlesWon` / `battlesLost` in D14.5's `PlayerStats`. The event uses `Option<FleetId>` for `winner`/`loser` and an `outcome: Won | Drawn` discriminator; D14.5 counts `Won` as one win for the `winner`'s player and one loss for the `loser`'s player, and `Drawn` as one loss for each side's player.
+- **`BattleResolvedEvent` from D9.6** increments `Player.battlesWon` / `Player.battlesLost` (D1.2 maintained fields) at combat end. D14.5's `PlayerStats` reads these fields directly. The event uses `Option<FleetId>` for `winner`/`loser` and an `outcome: Won | Drawn` discriminator; D9.6 increments `Won` as one win for the `winner`'s player and one loss for the `loser`'s player, and `Drawn` as one loss for each side's player.
 - **Ties at `MAX_TURN`**: declared a draw (no winner). The earlier "ties broken by turn of last score update" wording is superseded.
 - **Council vote count** uses the same `state.score[player]` field as D14.4's endgame score. The D11.5 vs D14.4 conflict is resolved: both read the cached value; neither computes the other. The implication that score includes treasury/fleet strength is acceptable for v1 council voting because the council is a soft diplomatic mechanism (not a strict ranking); D14.4's end-of-game tie-breaks apply the same ranking. v2 may separate council `voteCount` from end-of-game `score` for balance.
 

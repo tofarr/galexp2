@@ -206,15 +206,18 @@ For each AI player, in **threat-descending order** (most-threatened first):
 
 ```
 runAIPipeline(state, ctx) =
-    for player in sortByThreat(aiPlayers):
-        commands = runStrategy(player.personality, state, ctx)
+    let snapshot = state            // snapshot once at pipeline start
+    for player in sortByThreat(aiPlayers, snapshot):
+        commands = runStrategy(player.personality, snapshot, ctx)
         emit AIPipelineEvent { player, commandCount: |commands| }
     return commands collected per player
 ```
 
+**Snapshot semantics (locked in for v1)**: A4 Turn Manager calls D13 once *before* `step` runs, passing the *pre-human-commands* state. D13 sees the same `GameState` value for every AI in the batch — threat ranking is computed once against this snapshot, not recomputed between AIs. Each AI's `runStrategy` reads from the snapshot and emits commands; the commands are collected and submitted alongside human commands for `step` to apply. This makes AI ordering deterministic (a player can't manipulate the order by issuing certain commands first) and means AIs never see each other's mid-batch decisions.
+
 "Threat" is computed as: `Σ (relationScore * -1) for each at-war relation + ownPlanetCount / totalPlanets`. (This is *not* D14.4's score formula; threat is a per-player pressure measure, while score is a long-game total.)
 
-The order doesn't affect the result (each AI acts on its own state), but it affects debug logs and any per-player UI animations.
+The order doesn't affect the result (each AI acts on the same snapshot), but it affects debug logs and any per-player UI animations.
 
 For v1, AIs run **sequentially** in a single batch with all human commands. v2 could run them in parallel (multiple Quint/TS evaluations concurrently).
 
@@ -282,7 +285,7 @@ No top-level orchestrator beyond `aiPipeline.qnt` — D4 calls it directly.
 - **5 strategies**, each a weight preset + custom heuristics.
 - **Strategy selection *is* the difficulty mechanism** in v1 (no per-AI difficulty slider; that's v2).
 - **No search / minimax in v1.** Heuristic scoring only.
-- **AIs run sequentially**, ordered by **threat** (per-player pressure, not D14.4's score).
+- **AIs run sequentially**, ordered by **threat** (per-player pressure, not D14.4's score). Threat is computed once against the pre-step snapshot; AIs do not see each other's mid-batch decisions.
 - **AIs use `ctx.rng`** for any randomness (per Architecture Principle 1).
 - **`AIMemory` is per-player, persists across turns** (stored on `Player.aiMemory`); includes `targetPlayer` for the Aggressive strategy.
 - **Grudges expire after 50 turns** (default).

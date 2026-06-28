@@ -33,7 +33,7 @@ Five top-level chunks from `DECOMPOSITION.md`:
 
 D10 is invoked **after** D9 produces a winner at a star with a defended colony. The orchestrator (D4) calls D9 first, then D10 if a ground invasion happens. The trigger: the winning fleet contains at least one troop transport AND the player issues an `Invade` command (or has the default "auto-invade after winning space combat" preference set).
 
-**Multi-invasion per turn**: D4's `groundCombat` phase (phase 7b) loops over each planet with at least one invading fleet and runs D10 once per invasion order, sequentially in fleet-arrival order. The first invasion resolves against the planet's current state; the second sees the new (post-pillage or post-conquest) state, etc. This is the same "sequential resolution" pattern D9 uses for 3+ side encounters.
+**Multi-invasion per turn**: D4's `groundCombat` phase (phase 8) loops over each planet with at least one invading fleet and runs D10 once per invasion order, sequentially in fleet-arrival order. The first invasion resolves against the planet's current state; the second sees the new (post-pillage or post-conquest) state, etc. This is the same "sequential resolution" pattern D9 uses for 3+ side encounters.
 
 ## Recursive decomposition
 
@@ -274,14 +274,14 @@ No top-level orchestrator — D4 calls each chunk in sequence (`troops → groun
 - **Invading fleet retreats via D8** on Repelled/Draw (D10 emits the retreat event; D8 handles the actual movement).
 - **Natives always fight invaders** regardless of planet ownership.
 - **Pillage damages but doesn't destroy** buildings; auto-repair next turn.
-- **Ground combat is phase 7b** in D4's step (between `combatResolution` and `espionage`); runs once per invasion order, sequentially in fleet-arrival order.
+- **Ground combat is phase 8** in D4's step (between `combatResolution` and `espionage`); runs once per invasion order, sequentially in fleet-arrival order.
 - **`groundAttack` and `groundDefense` modifiers** come from D3.2's `Modifier` ADT; D10 reads them via `race.totalModifiers.X`.
 
 ## Open questions for D10
 
 - **Pillage percentage baseline**: 10% population loss + race modifier. **Default v1: 10%.** Tune during playtesting.
 - **Native resistance formula**: 5% of planet population fights as `defenderNativeResistance`. **Default v1: 5%.**
-- **Invader retreat destination**: when invasion is repelled, where does the fleet go? Default v1: nearest star within warp range, picked randomly if multiple options. D8 picks the destination; D10 just emits the retreat intent.
+- **Invader retreat destination**: when invasion is repelled, where does the fleet go? **Resolved v1**: nearest star within warp range, ties broken randomly via `ctx.rng`. **D8.7 `pickRetreatDestination(fleet, state, rng)` is the single source of truth** — shared with D9.5.4 (space-combat retreat). D10 just emits the retreat event and hands off to D8.
 - **Defensive buildings**: should "PlanetaryShield" building affect garrison strength? **Default v1: yes, +10 defenderMorale.** Adds a small strategic reason to build it.
 
 ## Next step
