@@ -132,7 +132,7 @@ Defender morale is computed once before combat:
 ```
 defenderMorale = baseMorale(50)
                  + buildings.defenseBonus(planet)     // e.g., Defense +10 (D1.2 BuildingKind)
-                 + race.totalModifiers.morale          // e.g., Honorable +1
+                 + race.totalModifiers.morale          // e.g., Honorbound +2 (per D3.2 traitModifiers)
                  - (defenderStrengthRatio < 1 ? 20 : 0) // hopeless defender penalty
 ```
 

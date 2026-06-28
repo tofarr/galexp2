@@ -35,20 +35,7 @@ Six top-level chunks from `DECOMPOSITION.md`:
 
 ### D11.1 → Relation state
 
-Per-pair state. `Relation` is symmetric (player A's relation with B = player B's relation with A):
-
-```
-type Relation = {
-  playerA: PlayerId,
-  playerB: PlayerId,
-  score: int,                       // -100..+100
-  treaties: Set<TreatyId>,          // active treaties between them
-  tradeRoutes: List<TradeRouteId>,
-  warState: WarState,               // AtPeace | AtWar(since: TurnId) | JustMadePeace(until: TurnId)
-  lastContactTurn: int,
-  // modifiers are computed, not stored — derived from treaties + history
-}
-```
+Per-pair state. `Relation` is symmetric (player A's relation with B = player B's relation with A). Record defined in D1.2; D11.1 only reads/writes it. `lastContactTurn` is initialized to `state.turn` at pair creation (whenever a player first observes another, D11.1 creates the pair record with `lastContactTurn = state.turn`, `score = 0`, `warState = AtPeace`).
 
 **Score modifiers** (computed live from the relation's treaties and state):
 
@@ -57,7 +44,7 @@ relationScore(a, b) =
     base 0
   + treatiesScore(a, b)            // +5 per Trade Pact, +20 per Alliance, etc.
   - warWeariness(a, b)             // -10 if at war
-  - recentBetrayal(a, b)           // -25 if broke a treaty in last 10 turns
+  - recentBetrayal(a, b)           // direct field on Relation: -recentBetrayal (e.g. 25 if a treaty was broken recently; decays by 1/turn)
   + tradeIncome(a, b) * 0.01       // small bonus for active trade
   + raceCompat(a.race, b.race)     // some races like/dislike each other (D3)
 ```
@@ -72,7 +59,7 @@ The final score is `clamp(rawScore, -100, +100)`. Without the clamp, accumulated
 and before D11.5 council read):
 
 ```
-if state.turn - relation.lastContactTurn > 10:
+if state.turn - relation.lastContactTurn > CONTACT_DRIFT_THRESHOLD:
     // Drift toward 0 at 1 point per turn; sign(relation.score) gives the direction.
     if relation.score > 0: relation.score = max(0, relation.score - 1)
     if relation.score < 0: relation.score = min(0, relation.score + 1)
@@ -106,7 +93,7 @@ Each treaty has effects:
 - **NAP**: `warState = AtPeace`; if either breaks it (attacks), `recentBetrayal += 25`.
 - **TradePact**: enables `TradeRoute`; +5 relation.
 - **Alliance**: mutual defense obligation. If either is attacked, the other declares war on the aggressor automatically. +20 relation.
-- **PeaceTreaty**: ends war; restores AtPeace; -25 relation if forced (conquest-driven).
+- **PeaceTreaty**: ends war; sets `warState = JustMadePeace(until: state.turn + JUST_MADE_PEACE_TURNS)`; -25 relation if forced (conquest-driven). Attacking before the "until" turn re-triggers the war and skips the cooldown for another `JUST_MADE_PEACE_TURNS` (per D1.1).
 - **Subjugation**: vassal is automatically set to `AtWar` with any suzerain's enemy; vassal cannot independently declare war; vassal pays 10% of gross income to suzerain each turn (applied as a maintenance line in D5.5). v2 could add suzerain diplomacy on behalf of vassals.
 - **ResearchAgreement**: each player gets 50% of the other's *unspent* research. The split runs in D4's `applyTreatyTransfers` helper, which sits between D6 (research) and D5.7 (production) and reads `Player.researchAccumulated` *after* D6.3 has deducted the cost of any tech acquired this turn. The source side's `researchAccumulated` is decremented by the transferred amount; the receiving side's `treasury` is incremented by the same amount (the research is converted to bc at a 1:1 rate). Total conserved. The split rate is pinned at `RESEARCH_AGREEMENT_RATE = 0.5` (D1.1).
 
@@ -219,7 +206,7 @@ Income formula:
 ```
 income = baseTrade
          × techLevelBonus(player, TechTree.Computer) // +10% per Computer level
-         × treatyBonus(relation.treaties)            // +20% with Trade Pact
+         × treatyBonus(relation.treaties)            // +20% with Trade Pact or Alliance; -20% with NAP; 1.0 otherwise
          × distancePenalty(fromPlanet, toPlanet)    // -1% per parsec, capped at -50%
 
 baseTrade = 2  // bc per turn per route (v1 default; tunable)
@@ -240,7 +227,7 @@ distancePenalty(fromPlanet, toPlanet) =
 Trade requires:
 - Both planets owned (not native/uncolonized).
 - Player A owns one, Player B owns the other (or same player trades with self).
-- A treaty allows trade (Trade Pact, Alliance, NAP — NAP allows trade in v1).
+- A treaty allows trade: TradePact enables it at the treaty-bonus rate (×1.20); Alliance enables it at the same rate (v1 simplification — MoO's Alliance bonus is folded into TradePact); NAP enables it at reduced rate (×0.80). Other treaties do not enable trade.
 
 Trade routes are created via player command (`CreateTradeRoute(from, to)`); they persist across turns.
 
@@ -271,7 +258,7 @@ Linear with one side-branch (D11.5).
 | Depends on | What we need | Where it lives |
 |---|---|---|
 | D1 Core Types | `Player`, `Relation`, `Treaty`, `Offer`, `OfferSide`, `TradeRoute`, `PlayerId`, `TreatyId`, `WarState` | D1.2 |
-| D3 Races & Traits | `raceCompat(a, b)` for relation modifiers, `aiPersonality(race)` (race-base personality) | D3.2, D3.4 |
+| D3 Races & Traits | `raceCompat(a, b)` for relation modifiers | D3.2 |
 | D6 Research | `techLevel(player, tree)` for trade income; `canReceiveTech`/`receiveTech` for trade offers | D6.5 |
 | D13 AI | (no import) — D13 generates AI offers; D11 evaluates them | D13 |
 | D14 Victory | (no import) — D11.5 reads the derived `state.score` field (D1.3) which the D4 helper writes using the D14.4 formula | D14.4 |
@@ -326,8 +313,8 @@ No top-level orchestrator — D4 calls each chunk in sequence: `applyRelationDri
 - **Trade income cached on `TradeRoute.income`** by D11.6; D5.5 reads the previous turn's cached value.
 - **Subjugation is mechanical in v1** — vassal auto-AtWar with suzerain's enemies, pays 10% tribute. No AI heuristic.
 - **Subjugation is one-way in v1** (no liberation mechanic).
-- **Trade Pact, NAP, Alliance all enable trade routes** (NAP enables at reduced income).
-- **Treaty breakage (e.g., attacking during NAP) adds 25 to `recentBetrayal`**, decaying slowly.
+- **Trade Pact and Alliance enable trade routes at ×1.20 income; NAP enables at ×0.80 income**. PeaceTreaty, Subjugation, and ResearchAgreement do not enable trade.
+- **Treaty breakage (e.g., attacking during NAP) adds 25 to `Relation.recentBetrayal`**, which decays by 1 each turn (D11.1). The score formula reads it as `-recentBetrayal` so a recent break penalizes the score until it decays to 0.
 - **Research agreement is a per-turn 50/50 split of unspent research**, applied in D4's `applyTreatyTransfers` helper between D6 (research) and D5.7 (production).
 
 ## Open questions for D11

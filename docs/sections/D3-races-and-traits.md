@@ -48,7 +48,7 @@ Ten hardcoded races from the original MoO:
 | Klackons | Repulsive, Industrial | Volcanic | Construction |
 | Meklons | Cybernetic, Creative | Oceanic | Computer |
 | Mrrshan | Warrior, Honorbound | Tundra | Weapons |
-| Psilons | Telepathic, Erudite | Oceanic | Weapons +1 (extra) |
+| Psilons | Telepathic, Erudite | Oceanic | Weapons, Shields (D3.3: Weapons +2, Shields +1) |
 | Sakkra | Subterranean, Lithovore | Volcanic | none |
 
 (Trait and affinity names are placeholders; final names come from the original MoO names when we get to the Quint spec. The structure — each race has 2 traits + homeworld type + optional affinity — is what matters here.)
@@ -126,7 +126,6 @@ Each `Trait` value has a fixed list of modifiers, defined once in the spec:
 
 ```
 traitModifiers(Militaristic)   = { GroundAttack(1), GroundDefense(1), ShipAttack(1) }
-traitModifiers(Toltec)         = { Diplomacy(2) }
 traitModifiers(Cybernetic)     = { ResearchEfficiency(1.20), ShipDefense(1) }
 traitModifiers(Subterranean)   = { Morale(1), GroundDefense(1) }        // D10.3 reads `GroundDefense` AND skips surrender check (data-driven via the trait; see D10.3)
 traitModifiers(Lithovore)      = { GrowthMod(1.0) }                     // D5.1 reads "no food dependence" via separate flag
@@ -141,7 +140,7 @@ traitModifiers(Creative)       = { ResearchEfficiency(1.15) }
 traitModifiers(Honorbound)     = { Morale(2), Pillage(-0.05) }          // Pillage less aggressively
 traitModifiers(Telepathic)     = { CounterEspionage(2) }
 traitModifiers(Erudite)        = { ResearchEfficiency(1.20) }
-traitModifiers(Tolerant)       = { Diplomacy(1) }                        // gain positive relations 1.0× faster with non-aligned races; was missing from prior drafts
+traitModifiers(Tolerant)       = { Diplomacy(1) }                        // +1 per positive relation-modifier event from non-aligned races
 // (16 traits total — see D1.1 for the canonical catalog)
 ```
 

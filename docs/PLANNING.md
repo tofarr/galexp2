@@ -237,6 +237,25 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D13.7: AI pipeline uses an explicit pre-step snapshot; threat ranking is computed once against the snapshot, not recomputed between AIs. AIs never see each other's mid-batch decisions | Review B6 / B11 |
 | 2026-06-05 | D14: `checkAllVictories` resolution order is D14.1 → D14.2 → D14.3 → D14.4 — first match wins on simultaneous victories; ties at MAX_TURN are draws | Review B13 |
 | 2026-06-05 | D3.2: documented the trait-flag pattern — traits like `Subterranean` and `Lithovore` carry a `Modifier` set *and* a separate data-driven check via `hasTrait(state, ..., Trait)`. Intentional; v2 may move flag-style effects into a `TraitFlag` enum | Review B7 |
+| 2026-06-05 | D3.2: dropped orphan `traitModifiers(Toltec) = { Diplomacy(2) }`; `Tolerant = { Diplomacy(1) }` is the only entry (Gnolams' trait) | R4.1 / R4.18 — Toltec was never in the v1 catalog |
+| 2026-06-05 | D10 L135: comment changed from "Honorable +1" to "Honorbound +2 (per D3.2 traitModifiers)" — matches `traitModifiers(Honorbound) = { Morale(2), Pillage(-0.05) }` | R4.2 — `Honorable` is an `AiPersonalityTrait`, not a `Trait` |
+| 2026-06-05 | D3.1: Psilons tech-affinity row rewritten as `Weapons, Shields (D3.3: Weapons +2, Shields +1)` — Psilons carry dual affinities per D3.3 | R4.3 — original `Weapons +1 (extra)` was a column-bleed typo |
+| 2026-06-05 | D1.2: `Relation` record unified to the full D11.1 shape (`playerA, playerB, score, treaties, tradeRoutes, warState, lastContactTurn`); D11.1 references D1.2 instead of redefining. Removed the unused `level + modifiers` stub | R4.4 |
+| 2026-06-05 | D1.1: `TreatyKind` enum now references D11.2's authoritative ADT (NonAggressionPact, TradePact, Alliance, PeaceTreaty, Subjugation, ResearchAgreement); old `Peace/Alliance/TradePact/NAP/NonAggression/Tribute` set removed | R4.5 |
+| 2026-06-05 | D1.2: dropped `Player.relations/spies/treaties` (only ever stored on `GameState`; double-declared) | R4.6 |
+| 2026-06-05 | D1.2: `Player.aiPersonality` typed as `Personality` (D13.1 record — `strategy, weights, aiMemory`) | R4.7 |
+| 2026-06-05 | D1.2: dropped `ShipDesign.buildQueue` (never written; queue is per-player in D5.7) | R4.8 |
+| 2026-06-05 | D1.1: pinned `STARTING_TECH_LEVEL = 1` and `INITIAL_POPULATION = 5`; also pinned `JUST_MADE_PEACE_TURNS = 5` and `CONTACT_DRIFT_THRESHOLD = 10` | R4.9, R4.11 |
+| 2026-06-05 | D1.1: added `WarState` ADT (`AtPeace \| AtWar(since: TurnId) \| JustMadePeace(until: TurnId)`); new relations start at `AtPeace` with `lastContactTurn = state.turn` | R4.10, R4.12 |
+| 2026-06-05 | D1.2: added `Command` ADT as single source of truth for player/AI actions; A3 retains validation/queue responsibility only | R4.13 |
+| 2026-06-05 | D1.1: rewrote `HyperExpansion` comment — "v1 ships without it. v2 could re-add it once a race's third trait slot exists." (was "fifth trait slot") | R4.14 |
+| 2026-06-05 | D7.5: `CombatStats.cost` carries inline comment clarifying it is the bc cost to build one ship of this design | R4.19 |
+| 2026-06-05 | D7.5: speed comment now explicitly lists `HyperDrive / FuelTank` as the v2 candidates that would modify it | R4.20 |
+| 2026-06-05 | D11: `Relation.lastContactTurn` initial value pinned — `state.turn` at pair creation; pair created on first observation by D11.1 | R4.10 |
+| 2026-06-05 | D11: trade-route treaty multipliers pinned — TradePact ×1.20, Alliance ×1.20, NAP ×0.80; PeaceTreaty/Subjugation/ResearchAgreement do not enable trade | R4.21 |
+| 2026-06-05 | D11/D13: replaced nonexistent `aiPersonality(race)` reference with `aiDefaultStrategy(race)` in dependency tables | R4.16 |
+| 2026-06-05 | D1.2: `Relation.playerA/playerB` retained for now — useful in event payloads and tests; keying by canonicalized pair is the canonical lookup. Comment added documenting the redundancy | R4.17 |
+| 2026-06-05 | D5/D11: verified "Tribute" enum value is gone; "tribute" remains only in the noun sense (vassal maintenance-line payment) | R4.15 |
 
 ## Open questions
 

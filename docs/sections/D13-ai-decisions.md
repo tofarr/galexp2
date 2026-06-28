@@ -240,7 +240,7 @@ D13.7 calls the others; the strategies depend on D13.1's scaffolding.
 | Depends on | What we need | Where it lives |
 |---|---|---|
 | D1 Core Types | `Player`, `GameState`, `Command`, `Personality` | D1.2 |
-| D3 Races & Traits | `techAffinity(race, tree)`, `aiPersonality(race)` for base personality | D3.2, D3.4 |
+| D3 Races & Traits | `techAffinity(race, tree)`, `aiDefaultStrategy(race)` for initial AI strategy | D3.2, D3.4 |
 | D5 Economy | Reads `player.economy` for build decisions | D5 (read-only) |
 | D6 Research | Reads `player.techs` for research selection | D6 (read-only) |
 | D8 Fleet & Movement | Generates `MoveTo` commands | D8.1 |

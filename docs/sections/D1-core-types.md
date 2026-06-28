@@ -38,12 +38,13 @@ What lives here:
   - `PlanetType`: Terrestrial, Arid, Oceanic, Tundra, Barren, Volcanic, GasGiant, AsteroidBelt
   - `PlanetSpecial`: e.g., Fertile, MineralRich, UltraRich, Poor, Artifact, Native
   - `StarSpecial`: Ancient, PirateCache, GalacticCore
-  - `Trait`: the v1 catalog is **16 traits** — Skilled, Versatile, Flight, Warrior, Militaristic, Subterranean, Stealthy, Cybernetic, Tolerant, Repulsive, Industrial, Creative, Honorbound, Telepathic, Erudite, Lithovore. (`HyperExpansion` is no longer in the ADT — it had no race assigned; v2 could re-add it as a fifth trait slot.)
+  - `Trait`: the v1 catalog is **16 traits** — Skilled, Versatile, Flight, Warrior, Militaristic, Subterranean, Stealthy, Cybernetic, Tolerant, Repulsive, Industrial, Creative, Honorbound, Telepathic, Erudite, Lithovore. (`HyperExpansion` was in early drafts but never appeared in any race's two-trait slot; v1 ships without it. v2 could re-add it once a race's third trait slot exists.)
   - `HullSize`: Small, Medium, Large, Huge
   - `WeaponKind`: Beam, Missile, Torpedo, **FighterBay**, **BomberBay** (renamed from `Fighter`/`Bomber` to avoid colliding with `Hull.Fighter`/`Hull.Bomber`; the bay launches fighters/bombers as spawned ships)
   - `SpecialKind`: Shield, Armor, ECM, PointDefense, FuelTank, ColonyModule, etc.
   - `TechTree`: Weapons, Propulsion, Construction, Computer, Shields, ForceFields
-  - `TreatyKind`: Peace, Alliance, TradePact, NAP, NonAggression, Tribute
+  - `TreatyKind` (see D11.2 for the authoritative ADT): NonAggressionPact, TradePact, Alliance, PeaceTreaty, Subjugation, ResearchAgreement
+  - `WarState`: AtPeace | AtWar(since: TurnId) | JustMadePeace(until: TurnId) — used by `Relation.warState`. New relations start as `AtPeace`; declaring war sets `AtWar(since: state.turn)`; a `PeaceTreaty` (D11.4) sets `JustMadePeace(until: state.turn + JUST_MADE_PEACE_TURNS)`.
   - `MissionKind`: StealTech, SabotageBuilding, SabotageShip, CounterEspionage, ObserveFleet, ObserveTreasury, AssassinateLeader
   - `BuildingKind`: Factory, ResearchLab, Farm, Market, Defense, Spaceport, Capital
   - `EventKind`: many variants (combat, diplomacy, discovery, etc.)
@@ -57,7 +58,7 @@ What lives here:
   - `DURATION_OBSERVE_TREASURY = 1` turn
   - `DURATION_COUNTER_ESPIONAGE = 1` turn
   - `DURATION_ASSASSINATE_LEADER = 1` turn
-- **Game-wide constants**: `MAX_PLAYERS = 10`, `MIN_PLAYERS = 2`, galaxy size presets (`SMALL = 24`, `MEDIUM = 36`, `LARGE = 56`, `HUGE = 80` → star counts and map dimensions), `STARTING_TECH_LEVEL`, `MAX_TURN = 200`, `INITIAL_POPULATION`, `COMBAT_MAX_ROUNDS = 50` (cap on tactical-combat length; exceeded = both sides disengage with no winner), `MAX_GROUND_ROUNDS = 30`, `COUNCIL_INTERVAL = 25`, `SPY_PRODUCTION_INTERVAL = 10`, **`BC_PER_TAX_POINT` removed** (was never referenced by D5.5 or D11.3; the v1 scale is governed by `PLANET_BASE_TAX_INCOME` instead — see REVIEW-NOTES 4.19), `CONQUEST_VICTORY_THRESHOLD = 0.80` (D14.1; 80% of habitable planets, no rival above 10%), `MAX_EVENTS_IN_MEMORY = 200`, `SPY_UPKEEP_PER_TURN = 1` (bc per spy per turn; D5.5 reads from this), `PLANET_BASE_TAX_INCOME = 1` (bc per planet per turn at taxRate=0 baseline; D5.5 scales by taxRate), `RECENTLY_CONQUERED_TURNS = 5` (D5.6 morale `recentlyConquered` window; `Planet.conqueredOnTurn` carries the timestamp), **`TURN_WARNING_THRESHOLD = 10`** (D4.2 emits `ApproachingEndOfGameEvent` when `state.turn >= MAX_TURN - TURN_WARNING_THRESHOLD`), **`TAX_RATE_MIN = 0`**, **`TAX_RATE_MAX = 100`**, **`TAX_RATE_DEFAULT = 30`** (D5.5 slider range and v1 default; D5.6 reads `> 60` for the high-taxes penalty), **`RESEARCH_AGREEMENT_RATE = 0.5`** (D4's `applyTreatyTransfers` helper; the v1 research-agreement split rate), **`BUILDING_LEVEL_MULTIPLIER(level) = level`** (D5.7: `~10 bc × level` cost formula is `state.buildings[kind].baseCost × BUILDING_LEVEL_MULTIPLIER(building.level)`), etc.
+- **Game-wide constants**: `MAX_PLAYERS = 10`, `MIN_PLAYERS = 2`, galaxy size presets (`SMALL = 24`, `MEDIUM = 36`, `LARGE = 56`, `HUGE = 80` → star counts and map dimensions), `STARTING_TECH_LEVEL = 1` (every tech tree at game start), `MAX_TURN = 200`, `INITIAL_POPULATION = 5` (homeworld starting pop; colony ships seed planets at this value too, per D8.6), `COMBAT_MAX_ROUNDS = 50` (cap on tactical-combat length; exceeded = both sides disengage with no winner), `MAX_GROUND_ROUNDS = 30`, `COUNCIL_INTERVAL = 25`, `SPY_PRODUCTION_INTERVAL = 10`, **`BC_PER_TAX_POINT` removed** (was never referenced by D5.5 or D11.3; the v1 scale is governed by `PLANET_BASE_TAX_INCOME` instead — see REVIEW-NOTES 4.19), `CONQUEST_VICTORY_THRESHOLD = 0.80` (D14.1; 80% of habitable planets, no rival above 10%), `MAX_EVENTS_IN_MEMORY = 200`, `SPY_UPKEEP_PER_TURN = 1` (bc per spy per turn; D5.5 reads from this), `PLANET_BASE_TAX_INCOME = 1` (bc per planet per turn at taxRate=0 baseline; D5.5 scales by taxRate), `RECENTLY_CONQUERED_TURNS = 5` (D5.6 morale `recentlyConquered` window; `Planet.conqueredOnTurn` carries the timestamp), `JUST_MADE_PEACE_TURNS = 5` (D11.4: when a `PeaceTreaty` ends a war, `warState` becomes `JustMadePeace(until: state.turn + JUST_MADE_PEACE_TURNS)`; any attack before the "until" turn re-triggers the war with no second truce allowed for another `JUST_MADE_PEACE_TURNS`), **`TURN_WARNING_THRESHOLD = 10`** (D4.2 emits `ApproachingEndOfGameEvent` when `state.turn >= MAX_TURN - TURN_WARNING_THRESHOLD`), **`TAX_RATE_MIN = 0`**, **`TAX_RATE_MAX = 100`**, **`TAX_RATE_DEFAULT = 30`** (D5.5 slider range and v1 default; D5.6 reads `> 60` for the high-taxes penalty), **`RESEARCH_AGREEMENT_RATE = 0.5`** (D4's `applyTreatyTransfers` helper; the v1 research-agreement split rate), **`BUILDING_LEVEL_MULTIPLIER(level) = level`** (D5.7: `~10 bc × level` cost formula is `state.buildings[kind].baseCost × BUILDING_LEVEL_MULTIPLIER(building.level)`), **`CONTACT_DRIFT_THRESHOLD = 10`** turns (D11.1; relations with `lastContactTurn` older than this drift toward 0), etc.
 
 Modeling decisions (locked in for v1):
 - IDs are nominal newtypes over `int`, not strings. Saves space; speeds map lookups; survives catalog reordering.
@@ -77,14 +78,14 @@ What lives here (record types):
   - `Building` — kind, level (int, default 1; v1 cost = `baseCost × levelMultiplier(level)`, see D5.7), baseCost, buildIndustry, maxLevel, prereqTech, baseEffect (see `BuildingEffect` ADT below).
 
 - **Mutable entities** (change during play):
-  - `Player` — id, raceId, isAI, aiPersonality, aiMemory (`AIMemory`; persisted across turns; consumed by D13; default empty), homeworldPlanetId, knownStarIds, knownPlanetIds, techs (acquired), currentResearch (Option<TechId>), researchAccumulated (int; reset on tech acquisition and on switching research, per D6.3), treasury, relations (Map<PlayerId, Relation>), spies, treaties, intelLedger (`Map<PlayerId, PlayerIntel>`; written by D12.3), unlockedBuildings, unlockedHulls, unlockedWeapons, unlockedSpecials, shipStatBonuses (`Map<ShipStat, int>`), productionBonuses (`Map<TechTree, float>`), specialBonuses (`Map<SpecialKind, int>`), taxRate (int; clamped to `[TAX_RATE_MIN, TAX_RATE_MAX]`; default `TAX_RATE_DEFAULT`), battlesWon (int; incremented by D9.6.5 on `BattleResolvedEvent.outcome = Won`, default 0), battlesLost (int; incremented by D9.6.5 on `Won` for the loser and on `Drawn` for both sides, default 0). *Note: `Player.score` is **not** a field — the score is stored on `GameState` as `state.score: PlayerId -> int` (see D1.3), recomputed once per turn by a D4 helper using D14.4's `computeScore` formula.*
+  - `Player` — id, raceId, isAI, aiPersonality (`Personality`; D13.1 record: `strategy, weights, aiMemory` — human `strategy` is overridable at game start, AI players' `strategy` is set by `aiDefaultStrategy(race)` and mutated by D13 across turns), homeworldPlanetId, knownStarIds, knownPlanetIds, techs (acquired), currentResearch (Option<TechId>), researchAccumulated (int; reset on tech acquisition and on switching research, per D6.3), treasury, intelLedger (`Map<PlayerId, PlayerIntel>`; written by D12.3), unlockedBuildings, unlockedHulls, unlockedWeapons, unlockedSpecials, shipStatBonuses (`Map<ShipStat, int>`), productionBonuses (`Map<TechTree, float>`), specialBonuses (`Map<SpecialKind, int>`), taxRate (int; clamped to `[TAX_RATE_MIN, TAX_RATE_MAX]`; default `TAX_RATE_DEFAULT`), battlesWon (int; incremented by D9.6.5 on `BattleResolvedEvent.outcome = Won`, default 0), battlesLost (int; incremented by D9.6.5 on `Won` for the loser and on `Drawn` for both sides, default 0). *Note: `Player.score` is **not** a field — the score is stored on `GameState` as `state.score: PlayerId -> int` (see D1.3), recomputed once per turn by a D4 helper using D14.4's `computeScore` formula. `relations`, `spies`, and `treaties` are also **not** fields — they live on `GameState` only (L182-188 below), keyed by id; A1 stores Player records without these collections.*
   - `Planet` — id, starId, orbitIndex, type, size, richness, specials, population, maxPopulation, buildings, owner (Option<PlayerId>), garrison, conqueredOnTurn (Option<TurnId>; set on D10.5 conquest, consumed by D5.6 morale), buildFleetId (Option<FleetId>; lazily created by D5.7 on first ship completion; ships built at this planet land in this fleet).
   - `Star` — id, x, y, spectralClass, planetIds, specials, owner (Option<PlayerId>; home star).
   - `Ship` (per-individual, not stack; D8.5's `Fleet.ships: List<{designId, count}>` is a *stack grouping* on the fleet, not on `Ship` — see "Ship semantics" below) — id, designId, hp (current/max), experience (v2-placeholder; see D9.6.3).
   - `Fleet` — id, ownerId, location (Either at StarId, or in-transit with from/eta/destination), ships (`List<{designId: ShipDesignId, count: int}>` — each entry is a *stack* of `count` ships of one design; HP and experience are tracked per-stack on each entry: `{designId, count, hpCurrent, hpMax, experience}`; partial-count splits across a single design are v2), orders (e.g., destination, stance), warpRange (int; cached from min over ship hulls; recomputed by D8.5 on merge/split).
-  - `ShipDesign` — id, ownerId, name, hullId, slotAssignments (list of (slotIndex, componentId)), specialIds, buildQueue.
-  - `Relation` — level (int, -100..+100), modifiers (list).
-  - `Treaty` — id, parties (Set<PlayerId>), kind, terms, signedOnTurn.
+  - `ShipDesign` — id, ownerId, name, hullId, slotAssignments (list of (slotIndex, componentId)), specialIds.
+  - `Relation` — symmetric pair record (D11.1; keyed by canonicalized `(minPlayerId, maxPlayerId)` in `GameState.relations`): `playerA, playerB, score (int, -100..+100), treaties: Set<TreatyId>, tradeRoutes: List<TradeRouteId>, warState: WarState, lastContactTurn: int, recentBetrayal: int (default 0; +25 when a treaty is broken, decays by 1/turn until 0; D11.1 mutates)`. Modifiers (relation-score deltas from treaties/trade/recentBetrayal) are *computed live*, not stored on the record.
+  - `Treaty` — id, parties (Set<PlayerId>), kind, signedOnTurn. (No separate `terms` field — the treaty kind determines effects via D11.2.)
   - `TradeRoute` — id, fromPlanetId, toPlanetId, ownerId, income (cached at end of D11.6 each turn; read by D5.5 the following turn), active (bool; false when either endpoint conquered or unowned, set by D10.5 / end-of-turn cleanup).
   - `Spy` — id, ownerId, skill (int, 1..10, increases with successful missions; default 3 for new spies), locationPlanetId, status (`Idle | OnMission(mission: MissionId) | Captured | Killed`; the `OnMission` payload references a `Mission` record by id), detectionRisk (float; passive chance modifier; rarely read directly because D12.5's detection formula uses `counterEspionageSkill(target)` — kept on the record for v2's per-spy detection modifiers).
   - `Mission` — id, spyId, kind (`StealTech | ObserveFleet | ObserveTreasury | SabotageBuilding | SabotageShip | AssassinateLeader | CounterEspionage`), targetPlayerId, assignedTurn, progressTurns (default 0; incremented by D12.2 each turn), difficulty (computed at assignment time by D12.1).
@@ -110,6 +111,30 @@ type BuildingEffect =
 ```
 
 A `Building` record carries a *list* of these (most buildings have one; some have multiple). Consumers pattern-match on the ADT to sum the contribution they care about. D5 reads `foodOutput/industryOutput/researchOutput/tradeIncome/entertainmentBonus`, D10 reads `defenseBonus`, D12 reads `intelligenceCenter`, D5.7 reads `shipRepairBonus` for the build fleet.
+
+### `Command` ADT (player/AI actions — A3 fills in validation)
+
+Pure data; A3.2 validates before enqueue. Each section's chunk list in DECOMPOSITION.md references these variants by name; the ADT below is the single source of truth:
+
+```
+type Command =
+  | SetTaxRate(player: PlayerId, rate: int)                       // D5.5; clamped to [TAX_RATE_MIN, TAX_RATE_MAX]
+  | SetResearch(player: PlayerId, tech: Option<TechId>)            // D6.3; None = ClearResearch
+  | SetQueue(player: PlayerId, item: Option<QueueItem>)            // D5.7; single-item queue
+  | BuildBuilding(player: PlayerId, planet: PlanetId, kind: BuildingKind)
+  | BuildShip(player: PlayerId, planet: PlanetId, design: ShipDesignId, count: int)
+  | SetBuildingLevel(player: PlayerId, planet: PlanetId, kind: BuildingKind, level: int)
+  | MoveTo(fleet: FleetId, destination: StarId)                    // D8.1; stance is read from the fleet's current stance at order-issuance time and copied into the internal FleetOrder.MoveTo
+  | Split(fleet: FleetId, newFleet: FleetId, shipIndices: Set<int>)// D8.1; shipIndices are *design slot* indices in `fleet.ships` (v1: only whole-slot splits)
+  | SetStance(fleet: FleetId, stance: Stance)                      // D8.1; Stance = Defend | Attack | Explore
+  | Invade(player: PlayerId, fleet: FleetId, planet: PlanetId)     // D10
+  | DeclareWarCommand(from: PlayerId, to: PlayerId)                // D11.4; unilateral
+  | ProposeTreaty(from: PlayerId, to: PlayerId, treaty: TreatyKind)// D11.2 + D11.4
+  | CreateTradeRoute(player: PlayerId, from: PlanetId, to: PlanetId) // D11.6
+  | AssignMission(player: PlayerId, spy: SpyId, kind: MissionKind) // D12.1
+```
+
+`QueueItem = BuildBuilding(BuildingKind) | BuildShip(ShipDesignId, count)`. Commands rejected by validation are dropped silently by A3.2 (logged via the `CommandRejected` event kind).
 
 ### Cross-entity helpers (computed view functions — no stored aggregates)
 
@@ -285,7 +310,7 @@ Every other section imports from D1. The matrix:
 | D10 Ground Combat | `Planet`, `Fleet`, `Ship`, `Event` |
 | D11 Diplomacy | `Player`, `Treaty`, `TreatyKind`, `Relation`, `TradeRoute`, `Event` |
 | D12 Espionage | `Spy`, `Mission`, `MissionKind`, `Player`, `Planet`, `Event` |
-| D13 AI Decision Logic | Reads from most entity types; outputs `Command[]` (defined in A3) |
+| D13 AI Decision Logic | Reads from most entity types; outputs `Command[]` (ADT defined in D1.2 above; A3 adds validation/queue) |
 | D14 Victory Conditions | All entities; `GameState` |
 
 Because D1 is the root, no section can be specified or implemented until D1 is done.

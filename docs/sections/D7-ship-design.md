@@ -168,11 +168,11 @@ type CombatStats = {
   attack: int,        // sum of (weapon.damage * weapon.shots) + accuracy bonus
   defense: int,       // base + ECM + armor-pct-equivalent + computer-bonus
   computer: int,      // base 1 + scanner bonuses (v1: always 1)
-  speed: int,         // hull.baseSpeed (v1; v2 may add drive specials)
+  speed: int,         // hull.baseSpeed (v1; v2 may add HyperDrive / FuelTank specials that increase it)
   hp: int,            // hull.baseHp + armor HP bonus
   shieldCapacity: int,// 0 if no shields; sum of shield capacities
   space: int,         // hull.baseSpace - used
-  cost: int,          // hull.baseCost + sum(weapon.cost) + sum(special.cost)
+  cost: int,          // bc to build one ship of this design = hull.baseCost + Σweapon.cost + Σspecial.cost
 }
 ```
 
