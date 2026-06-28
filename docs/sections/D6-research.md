@@ -97,14 +97,23 @@ Per-player function: `applyResearch(player, grossResearch) -> (player', events)`
 
 Logic:
 1. If `player.currentResearch = None`: emit `NoResearchEvent { player }` (player forgot to pick). Return unchanged.
-2. Else: `accumulated = player.researchAccumulated + grossResearch × race.researchEfficiency`.
+2. Else: `accumulated = player.researchAccumulated + grossResearch × researchEfficiencyModifier(player.race)`.
 3. If `accumulated >= techCost(player.currentResearch, player.race)`:
    - Subtract cost from accumulated.
    - Acquire the tech (call D6.4).
    - Reset `currentResearch` to `None`.
 4. Else: update `player.researchAccumulated = accumulated`.
 
-The `race.researchEfficiency` multiplier comes from race trait modifiers (e.g., Erudite +20%).
+```
+researchEfficiencyModifier(race) =
+    product of all `ResearchEfficiency(float)` variants in `totalModifiers(race)`
+    // e.g., Erudite grants ResearchEfficiency(1.20) → 20% bonus
+```
+
+This is the v1 path: the trait-derived `ResearchEfficiency` modifier (D3.2
+`Modifier` ADT) is the single source of truth for the per-turn research
+multiplier. Race tech affinities (D3.3) are applied separately as
+`treeCostModifier` inside `techCost`.
 
 If the player changes `currentResearch` mid-research, accumulated points are **lost** (MoO behavior; v1 matches). v2 could allow partial carry-over.
 

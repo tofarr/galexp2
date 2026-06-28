@@ -59,13 +59,32 @@ relationScore(a, b) =
   - warWeariness(a, b)             // -10 if at war
   - recentBetrayal(a, b)           // -25 if broke a treaty in last 10 turns
   + tradeIncome(a, b) * 0.01       // small bonus for active trade
-  + sharedEnemyBonus(a, b)         // +5 per shared enemy
   + raceCompat(a.race, b.race)     // some races like/dislike each other (D3)
 ```
 
+(Note: `sharedEnemyBonus` appeared in earlier drafts of this formula but
+is removed in v1 because counting shared enemies adds O(N²) book-keeping
+per turn; v2 may add it back as a memoized "shared enemy count" field.)
+
 The final score is `clamp(rawScore, -100, +100)`. Without the clamp, accumulated modifiers could push the score outside the documented range.
 
-**Score drifts over time** (every turn): if `state.turn - relation.lastContactTurn > 10`, the score drifts toward 0 at 1 point per turn starting at the 11th turn. If at peace and score < 0, score improves by 1 per turn (peace heals).
+**Score drift** (applied once per turn by D11.1, *after* treaty updates
+and before D11.5 council read):
+
+```
+if state.turn - relation.lastContactTurn > 10:
+    // Drift toward 0 at 1 point per turn; sign(relation.score) gives the direction.
+    if relation.score > 0: relation.score = max(0, relation.score - 1)
+    if relation.score < 0: relation.score = min(0, relation.score + 1)
+    // (When relation.score == 0, no drift applies.)
+```
+
+This single rule subsumes both "drift toward zero" and "peace heals".
+There is no separate "if at peace and score < 0, +1 per turn" line: when
+both sides are at peace and the score is negative, drift toward zero
+*is* the peace-heal behavior. This resolves the earlier contradiction
+between D11.1 line 257 and line 269 (one described drift-only; the other
+described peace-heal-as-extra).
 
 Stored on `GameState.relations: Map<RelationKey, Relation>` where `RelationKey = (minPlayerId, maxPlayerId)` (canonicalized pair).
 
@@ -101,7 +120,6 @@ Pure function: `evaluateOffer(offer, recipient, recipientRace, aiPersonality, re
 ```
 type Offer =
   | ProposeTreaty(from: PlayerId, to: PlayerId, treaty: Treaty)
-  | DeclareWar(from: PlayerId, to: PlayerId)
   | ProposeTrade(from: PlayerId, to: PlayerId, give: OfferSide, receive: OfferSide)
   | CancelTreaty(from: PlayerId, treatyId: TreatyId)
 
@@ -112,17 +130,38 @@ type OfferSide =
   | Planet(PlanetId)
 ```
 
+**Note**: `DeclareWar` is **not** an `Offer` variant — it is a separate
+`Command` (`DeclareWarCommand(from, to)`) handled by D11.4's
+`applyCommand` path. Earlier drafts placed `DeclareWar` in the `Offer`
+ADT; that's wrong because declarations of war don't have an
+acceptance step (D11.4 just sets `warState = AtWar(since: turn)` directly
+and emits `WarDeclaredEvent`). `DeclareWarCommand` lives alongside other
+D11 commands in `state.commandQueue` and is processed by D11.4.
+
 Decision logic:
 1. **Relation filter**: if relation < -50, the AI rejects most offers automatically ("we will not negotiate with you").
-2. **Personality filter**: each personality has weights for what they value.
+2. **Personality filter**: each `Personality` has weights for what they value. v1 uses the D13.1 `Personality.weights` vector plus a per-strategy table:
    ```
-   Pragmatic: { Money: +10, Tech: +5, Peace: +3, Conquest: -10 }
-   Aggressive: { Money: -5, Tech: -5, Conquest: +15, Alliance: -10 }
-   Diplomat: { Tech: +10, Peace: +10, Alliance: +5, Conquest: -15 }
+   // Each StrategyKind has a small diplomacy-specific preference table
+   // (extends the generic WeightVector with concrete numeric adjustments).
+   // The keys here are coarse, the values are small int adjustments to netValue.
+   Pragmatic (≈ Balanced + Diplomat, defaults):
+     Money: +10, Tech: +5, Peace: +3, Conquest: -10
+   Aggressive:
+     Money: -5, Tech: -5, Conquest: +15, Alliance: -10
+   Diplomat:
+     Tech: +10, Peace: +10, Alliance: +5, Conquest: -15
+   Builder / Technologist:
+     Money: +5, Tech: +5, Peace: 0, Conquest: -5
    ```
 3. **Value computation**: assign a value to `give` and `receive` based on recipient's perspective.
 4. **Net value**: `receiveValue - giveValue + personalityAdjustment`.
 5. **Accept if net value > 0** (with a small buffer like `> -5` for borderline offers).
+
+The diplomacy-specific table here is keyed by `Personality.strategy` (D13.1
+`StrategyKind = Aggressive | Builder | Technologist | Diplomat | Balanced`).
+v1 ships only the five values above; finer-grained personality weights
+(e.g., "Trickster", "Pacifist") are deferred to v2.
 
 Returns `OfferDecision.Accept` or `OfferDecision.Reject(reason: string)`.
 
@@ -179,9 +218,12 @@ TradeRoute {
 Income formula:
 ```
 income = baseTrade
-         × techLevelBonus(player, route.toPlanet)   // +10% per Computer level
+         × techLevelBonus(player, TechTree.Computer) // +10% per Computer level
          × treatyBonus(relation.treaties)            // +20% with Trade Pact
          × distancePenalty(fromPlanet, toPlanet)    // -1% per parsec, capped at -50%
+
+baseTrade = 2  // bc per turn per route (v1 default; tunable)
+techLevelBonus(player, tree) = 1.0 + 0.10 × techLevel(player, tree)
 ```
 
 Trade requires:
@@ -206,7 +248,7 @@ D11.3 (offer eval) ← reads D11.1, D11.2, D3 (race)     │
   ↓                                                    │
 D11.4 (acceptance) ← reads D11.3 result, applies via D11.2
   ↓
-D11.5 (council) ← reads D11.1 (relation) and the derived `state.score` field (D1.3, written by D14.4)
+D11.5 (council) ← reads D11.1 (relation) and the derived `state.score` field (D1.3, written by the D4 helper using the D14.4 formula)
   ↓
 D11.6 (trade) ← reads D11.1 (treaty), D6 (tech level)
 ```
@@ -221,7 +263,7 @@ Linear with one side-branch (D11.5).
 | D3 Races & Traits | `raceCompat(a, b)` for relation modifiers, `aiPersonality(race)` (race-base personality) | D3.2, D3.4 |
 | D6 Research | `techLevel(player, tree)` for trade income; `canReceiveTech`/`receiveTech` for trade offers | D6.5 |
 | D13 AI | (no import) — D13 generates AI offers; D11 evaluates them | D13 |
-| D14 Victory | (no import) — D11.5 reads the derived `state.score` field (D1.3) which D14 writes | D14.4 |
+| D14 Victory | (no import) — D11.5 reads the derived `state.score` field (D1.3) which the D4 helper writes using the D14.4 formula | D14.4 |
 
 D11 has moderate imports from the domain sections.
 

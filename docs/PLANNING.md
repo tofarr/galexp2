@@ -170,7 +170,36 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D13: `AIMemory.targetPlayer: Option<PlayerId>` added (used by D13.2 Aggressive strategy) | Doc referenced the field but didn't declare it |
 | 2026-06-05 | D5: `RevoltRiskEvent` is emitted by D5.1 (population growth chunk) when morale is low; D5.6 just computes the morale value | Doc had three conflicting statements of the emission site |
 | 2026-06-05 | D4: `step` passes `cmds` to every phase that consumes commands (economy, research, production, espionage, diplomacy); other phases get `(state, ctx)` only | Doc's pseudocode inconsistently dropped `cmds` from some phases |
+| 2026-06-05 | D1/D7: Hull record gets `baseSupply: int` and `troopCapacity: int`; D7 catalog pinned values; v1 transport carries 100 troops | D10.1 referenced `ship.troopCapacity`; D5.5 referenced `hull.baseSupply`; neither field was on the record |
+| 2026-06-05 | D1: Building record gets `baseCost: int` and `buildIndustry: int` | D5.7 referenced `Building.cost`; the field wasn't on the record |
+| 2026-06-05 | D1: Planet record gets `conqueredOnTurn: Option<TurnId>`; consumed by D5.6 morale (`recentlyConquered` window of `RECENTLY_CONQUERED_TURNS = 5`) | D5.6 referenced the timestamp; the field wasn't on the record |
+| 2026-06-05 | D1: TradeRoute record gets `active: bool`; set to `false` by D10.5 on conquest | D11.6 referenced the field; not on the record |
+| 2026-06-05 | D1: `BattleResolvedEvent` shape extended with `Option<FleetId>` winner/loser and `outcome: Won \| Drawn` discriminator | Original shape couldn't represent draws (both destroyed, or `COMBAT_MAX_ROUNDS` exceeded) |
+| 2026-06-05 | D1: `COMBAT_MAX_ROUNDS = 50`, `MAX_TURN = 200`, galaxy sizes pinned (`SMALL=24, MEDIUM=36, LARGE=56, HUGE=80`), `SPY_UPKEEP_PER_TURN = 1`, `PLANET_BASE_TAX_INCOME = 1`, `CONQUEST_VICTORY_THRESHOLD = 0.80`, `RECENTLY_CONQUERED_TURNS = 5` | All referenced from downstream chunks but no values pinned |
+| 2026-06-05 | D1: `AiPersonalityTrait` enum (Aggressive, Expansionist, Technologist, Diplomat, Trader, Ruthless, Honorable) and `StrategyKind` enum (Aggressive, Builder, Technologist, Diplomat, Balanced) declared | D3.4 referenced `AiPersonalityTrait` without an enum definition; D13.1 referenced `StrategyKind` separately — now both pinned and mapped via `aiDefaultStrategy(race)` |
+| 2026-06-05 | D3: `Modifier` ADT extended with `Pillage(float)` and `ResearchEfficiency(float)` variants | D10.4 referenced `pillageModifier`; D6.3 referenced `researchEfficiency` — neither had a corresponding `Modifier` variant |
+| 2026-06-05 | D3: trait modifier table now lists entries for every trait named in D3.1's race catalog (Skilled, Versatile, Flight, Warrior, Stealthy, Repulsive, Industrial, Creative, Honorbound, Telepathic, Erudite, etc.) | D3.2's example table only had 6 traits; D3.1 used 16 |
+| 2026-06-05 | D9: `BattleResolvedEvent` payload documented as `{star, winner: Option<FleetId>, loser: Option<FleetId>, outcome: Won \| Drawn, turn}` | Mirrors D1 event-kind index; draws are representable |
+| 2026-06-05 | D9: D9.2/D9.5 chunk descriptions now mark each as "v1 simplification vs full MoO behavior"; v1 ships the simplified version, v2 may restore per-stack initiative, line-of-sight beams, multi-side retreat sequencing, boarding conditions | Chunks previously read as if the full MoO behavior was the v1 spec |
+| 2026-06-05 | D5: D5.7's queue is single-item; on completion `queueItem = None` and the player must issue a fresh `SetQueue` command to produce more | Previous description used `nextQueueItem(player)` for auto-advance, which contradicted the "at most one item" statement |
+| 2026-06-05 | D5: D5.5 income formula's `planet.baseTaxIncome` is `PLANET_BASE_TAX_INCOME × (taxRate / 100)`; `spyUpkeep` is `|player.spies| × SPY_UPKEEP_PER_TURN`; `fleetSupplyCost` is per-ship via `shipDesign(state, ship).hull.baseSupply` | Previous text left per-planet tax undefined and spy upkeep as `Σ spies.upkeep` |
+| 2026-06-05 | D8: D8.5's split uses ship-design slot indices (one per `ships: List<{designId, count}>` entry); partial-count splits are v2 | Previous text was ambiguous about whether `shipIndices` referenced individual ships or design slots |
+| 2026-06-05 | D11: `sharedEnemyBonus` removed from `relationScore` formula (v1: O(N²) per turn is wasteful) | Formula referenced it but the v1 simple section dropped it |
+| 2026-06-05 | D11: drift-toward-zero and peace-heal are the same rule (drift toward 0 from either side). Removes the contradictory "drift" vs "peace heals" wording | D11.1 lines 257 and 269 said opposite things |
+| 2026-06-05 | D11: `DeclareWar` is a `DeclareWarCommand(from, to)`, not an `Offer` variant | Previous `Offer` ADT included `DeclareWar` but declarations have no acceptance step |
+| 2026-06-05 | D11: D11.6's `techLevelBonus` takes `(player, TechTree.Computer)`, not `(player, PlanetId)`; `baseTrade = 2` pinned | Argument types were wrong; base value was undefined |
+| 2026-06-05 | D14: tie at `MAX_TURN` is a draw; "ties broken by turn of last score update" is superseded | Body contradicted the resolved-decisions summary |
+| 2026-06-05 | D14: D14.5 stats counting handles `outcome = Won` (1 win + 1 loss) and `outcome = Drawn` (2 losses) | Previous text only described the `Won` case |
+| 2026-06-05 | D14: council vote uses `state.score[player]` directly (same field as D14.4 endgame score). v2 may separate `voteCount` from end-of-game `score` for balance | D11.5 vs D14.4 could create a circular dependency |
+| 2026-06-05 | D11/D14: `Player.score` ownership clarified — D14.4 owns the formula (pure function `computeScore`), the D4 helper owns the side-effect of writing `state.score[player]` once per turn (after economy, before victory check) | Earlier wording attributed the write to D14.4 in some places and to a "D4 helper" in others |
+| 2026-06-05 | DECOMPOSITION.md: added P13 (AI Inspector) and P14 (Hall of Fame / Stats Screen) | D12 referenced P13 (Espionage → was P13, actually P8); D13 referenced P14 (AI Inspector); D14 referenced P15 (Hall of Fame); none of P13-P15 existed |
+| 2026-06-05 | D1/D3/D11/D13: personality taxonomy unified — D3.4's `Race.aiPersonalityHints` (7 traits) is a soft default that D13.1's `aiDefaultStrategy(race)` maps to a `StrategyKind` (5 kinds); the human player can override at game start | Three competing taxonomies in the docs (D3.4 traits, D11.3 personality, D13.1 StrategyKind) were never reconciled |
 
 ## Open questions
 
-See the chat conversation for current open questions. Once resolved, they get converted into decisions here and detailed in their owning doc.
+Open questions live in two places:
+
+1. **Per-section "Open questions" sections** in each `docs/sections/D<n>-*.md` (resolved ones are flagged with `**Resolved v1:**`).
+2. **`docs/REVIEW-NOTES.md`** — a running audit of inconsistencies and cross-section gaps discovered during review. The PR for each pass of fixes converts the relevant entries from REVIEW-NOTES.md into the decision log above and removes them from the notes file.
+
+Earlier versions of this section pointed at "the chat conversation"; that pointer is now superseded because the decisions are now tracked in version control (PLANNING.md + REVIEW-NOTES.md + per-section Open questions) and not in chat.

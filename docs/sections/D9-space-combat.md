@@ -35,10 +35,13 @@ We go one level deeper. Each sub-chunk is *almost* leaf-sized: it can be specifi
 
 ### D9.2 → Targeting AI
 
+The chunks below describe the *full* targeting AI. v1 ships a deliberately
+simpler version; see "What simple v1 looks like for D9" below.
+
 - **D9.2.1 Targeting policy** — what fraction of firepower each ship allocates to which target? Pure function: `(attackerShip, defenders[]) -> targetIndex`.
-- **D9.2.2 Beam weapon target selection** — beams need line-of-sight; pick nearest target of appropriate size.
-- **D9.2.3 Missile/torpedo target selection** — fly at highest-value target.
-- **D9.2.4 Fighter/bomber behavior** — fighters escort, bombers attack ships.
+- **D9.2.2 Beam weapon target selection** — beams need line-of-sight; pick nearest target of appropriate size. **v1 simplification**: drop line-of-sight and "appropriate size"; beams fire at the nearest enemy regardless.
+- **D9.2.3 Missile/torpedo target selection** — fly at highest-value target. **v1 simplification**: missiles/torpedoes also use greedy nearest targeting, like beams.
+- **D9.2.4 Fighter/bomber behavior** — fighters escort, bombers attack ships. **v1 simplification**: fighters escort the fleet's largest ship; bombers attack the nearest enemy capital ship.
 
 ### D9.3 → To-hit & damage
 
@@ -58,10 +61,16 @@ We go one level deeper. Each sub-chunk is *almost* leaf-sized: it can be specifi
 
 ### D9.5 → Retreat mechanics
 
-- **D9.5.1 Retreat eligibility** — when can a stack retreat? (e.g., engines still working, not boarded, not in a trap.)
-- **D9.5.2 Retreat order sequencing** — who retreats first.
-- **D9.5.3 Damage-during-retreat** — pursuing fleet gets free shots.
-- **D9.5.4 Destination** — retreat to a star within warp range.
+The chunks below describe the *full* retreat system. v1 ships a
+deliberately simpler version; see "What simple v1 looks like for D9"
+below. Boarding-related conditions are v2 (D9.7) and not active in v1.
+
+- **D9.5.1 Retreat eligibility** — when can a stack retreat? In v1, any
+  non-destroyed fleet may attempt retreat at the end of the round.
+  v2 may add engines/boarding/trap conditions.
+- **D9.5.2 Retreat order sequencing** — who retreats first. **v1 simplification**: only one side can retreat per round (the player who issues the retreat command on their turn); the other side chooses to pursue or hold.
+- **D9.5.3 Damage-during-retreat** — pursuing fleet gets free shots. **v1 simplification**: one volley from the pursuer at the retreating fleet before disengagement.
+- **D9.5.4 Destination** — retreat to a star within warp range. **v1 simplification**: the retreating fleet picks the nearest star in `state.stars` within its `warpRange` (D8.2); ties broken randomly via the deterministic `ctx.rng`. The destination is then handed to D8 as a normal `MoveTo` order.
 
 ### D9.6 → Combat outcome
 
@@ -69,7 +78,20 @@ We go one level deeper. Each sub-chunk is *almost* leaf-sized: it can be specifi
 - **D9.6.2 Damage tracking per ship** — HP remaining. **v1 active.**
 - **D9.6.3 XP awarded** — surviving ships gain experience; new designs unlock. **Deferred to v2.** The chunk is defined here so the spec can include its type signatures and tests, but D9.6.3 emits no events and has no state effect in v1.
 - **D9.6.4 Scrap salvage** — destroyed ships leave debris; winner can collect. **Deferred to v2.** Same — chunk defined, no v1 effect.
-- **D9.6.5 Battle resolution event** — at combat end, emit `BattleResolvedEvent { star, winner: FleetId, loser: FleetId, turn }`. v1 active. Consumed by D14.5 to increment `battlesWon` / `battlesLost` for end-game stats.
+- **D9.6.5 Battle resolution event** — at combat end, emit
+  ```
+  BattleResolvedEvent {
+    star: StarId,
+    winner: Option<FleetId>,        // None if outcome = Drawn
+    loser: Option<FleetId>,         // None if outcome = Drawn
+    outcome: Won | Drawn,           // Won: exactly one survivor; Drawn: both destroyed or COMBAT_MAX_ROUNDS exceeded with no decisive result
+    turn: TurnId
+  }
+  ```
+  v1 active. Consumed by D14.5 to increment `battlesWon` / `battlesLost`
+  for end-game stats (D14.5 counts a `Won` event as 1 win for the
+  `winner`'s player and 1 loss for the `loser`'s player; a `Drawn` event
+  counts as 1 loss for each side's player).
 
 ## Dependency graph (within D9)
 
@@ -147,7 +169,7 @@ For v2 experiments, we can swap in richer formulas without touching callers — 
 - **Initiative is per-ship** in v1 (sorted by computer, ties by hull size). Per-stack initiative is v2.
 - **Stance is reserved data** — D9 does not read it in v1; D9.2 targeting AI consumes it in v2.
 - **D9.6.3 (XP) and D9.6.4 (scrap)** deferred to v2. Chunks defined for spec completeness; no v1 effect.
-- **`BattleResolvedEvent`** is emitted by D9.6 at combat end with `{star, winner, loser, turn}`; consumed by D14.5 for end-game stats and by P10 for UI feedback.
+- **`BattleResolvedEvent`** is emitted by D9.6 at combat end with `{star, winner: Option<FleetId>, loser: Option<FleetId>, outcome: Won | Drawn, turn}` (D9.6.5; D1 event-kind index); consumed by D14.5 for end-game stats and by P10 for UI feedback. `Option` types let D9 represent draws (both sides destroyed or `COMBAT_MAX_ROUNDS` exceeded) without a sentinel value.
 
 ## Next step
 
