@@ -97,12 +97,13 @@ At `state.turn >= MAX_TURN`, the player with the highest score wins.
 Score formula:
 
 ```
-score(player) =
-    count(player.planets) × 1                         // 1 point per planet
-  + count(player.techs) × 5                         // 5 points per tech
-  + totalPopulation(player) × 0.001                // 0.001 per population unit
-  + totalFleetStrength(player) × 0.1              // 0.1 per fleet combat stat sum
-  + player.treasury × 0.001                        // 0.001 per bc
+// `state` is implicit at the call site; the helpers are D1.2's pure functions.
+score(state, playerId) =
+    playerTotalPlanets(state, playerId) × 1           // 1 point per planet
+  + count(state.players[playerId].techs) × 5          // 5 points per tech
+  + totalPopulation(state, playerId) × 0.001          // 0.001 per population unit
+  + totalFleetStrength(state, playerId) × 0.1         // 0.1 per fleet combat stat sum
+  + state.players[playerId].treasury × 0.001          // 0.001 per bc
 ```
 
 `MAX_TURN = 200` (D1.1 constant).

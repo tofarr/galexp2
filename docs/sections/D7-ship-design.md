@@ -74,7 +74,7 @@ v1 catalog (~10 hulls, MoO-style):
 ```
 type Weapon = {
   id: WeaponId,
-  kind: WeaponKind,              // Beam, Missile, Torpedo, Fighter, Bomber
+  kind: WeaponKind,              // Beam, Missile, Torpedo, FighterBay, BomberBay
   name: string,
   damage: int,
   range: int,                    // parsecs or tactical hexes; same unit throughout
@@ -94,10 +94,12 @@ v1 catalog (~10 weapons), grouped by kind:
   Missile, Heavy Missile, Multi-Warhead Missile.
 - **Torpedo** (slow, very long range, high damage):
   Torpedo.
-- **Fighter** (spawned ships; treated as a weapon for placement):
-  Fighter.
-- **Bomber** (spawned ships; bombs capital ships):
-  Bomber.
+- **FighterBay** (launches spawned fighters; treated as a weapon for placement):
+  FighterBay.
+- **BomberBay** (launches spawned bombers; bombs capital ships):
+  BomberBay.
+
+Note: the `FighterBay`/`BomberBay` weapon kind *launches* `Hull.Fighter`/`Hull.Bomber` ships during combat (D9.2.4). The hull/weapon naming is kept distinct so a single design can mount *both* a FighterBay and a BomberBay without colliding with the Fighter hull type.
 
 ### D7.3 → Specials catalog
 

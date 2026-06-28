@@ -49,7 +49,11 @@ type AIInput = {
   playerState: Player,
   gameState: GameState,
   personality: Personality,
-  intelLedger: PlayerIntel,                  // from D12
+  // `intelLedger` here is `playerState.intelLedger[self]` — i.e., the *PlayerIntel* value
+  // (a single record), not the full Map. D13's AI decision logic only needs to know what
+  // *this* player knows about the others, not the other players' ledgers. (D1.2's
+  // `Player.intelLedger: Map<PlayerId, PlayerIntel>` is the map; D13 indexes it.)
+  intelLedger: PlayerIntel,                  // D1.2 PlayerIntel record; the value at intelLedger[self]
   turnNumber: int,
 }
 ```
@@ -74,12 +78,16 @@ type Personality = {
 
 // Mapping from D3.4's `Race.aiPersonalityHints: Set<AiPersonalityTrait>`
 // (7 traits: Aggressive, Expansionist, Technologist, Diplomat, Trader, Ruthless, Honorable)
-// to D13.1's `StrategyKind` (5 kinds). v1 ships a simple lookup:
-//   "if Aggressive or Ruthless in hints → Aggressive
+// to D13.1's `StrategyKind` (5 kinds). v1 ships a simple lookup with **first-match wins**
+// priority (this resolves both empty-hints and contradictory-hints cases):
+//   "if Aggressive or Ruthless in hints → Aggressive      (highest priority)
 //    elif Expansionist or Trader in hints → Builder
 //    elif Technologist in hints → Technologist
 //    elif Diplomat or Honorable in hints → Diplomat
-//    else → Balanced"
+//    else → Balanced"                                     (default; also covers empty-hints)
+// Contradictory hints (e.g., a race with both `Aggressive` and `Diplomat`) resolve to
+// the highest-priority matching strategy — so Aggressive wins. This is deterministic
+// and testable; D13.7's regression tests pin the mapping for each of the 10 races.
 // The human player can override this at game start by picking a different
 // strategy in the AI setup panel (P1).
 aiDefaultStrategy(race) = ...
@@ -209,6 +217,8 @@ runAIPipeline(state, ctx) =
 The order doesn't affect the result (each AI acts on its own state), but it affects debug logs and any per-player UI animations.
 
 For v1, AIs run **sequentially** in a single batch with all human commands. v2 could run them in parallel (multiple Quint/TS evaluations concurrently).
+
+**`AIPipelineEvent` consumer**: emitted to `state.events` for P13 (AI Inspector) and any future telemetry consumer (e.g., a balance-analysis dashboard). It is *not* consumed by gameplay logic — it's a debug/per-observability event only. The `reasoning` strings from `AIOutput` flow back to P13 separately (not as events).
 
 ## Dependency graph (within D13)
 

@@ -158,6 +158,60 @@ Phase 2 (Quint specs) or in a follow-up docs review:
 
 ---
 
+## Round 3 — findings (2026-06-05)
+
+A third docs-review pass over the full D-layer surfaced 37 findings
+not captured in the prior resolved/still-open lists. Of these,
+**35 were resolved in the same PR** (the section/doc edits and the
+PLANNING.md decision-log entries above) and **2 remain open** (9.1
+and 9.3 — both deferred to Phase 2 spec work).
+
+### Resolved in this PR
+
+See `PLANNING.md` decision-log entries dated 2026-06-05 (rows
+197–218) for the full per-finding resolution trail. Summary:
+
+- **Section 7 (critical, 1/1 resolved)** — D5 orchestrator reordered
+  so D5.6 (morale) runs before D5.3 (industry).
+- **Section 8 (high, 15/15 resolved)** — D1.2 Player/Building/Spy/
+  Mission records extended with missing fields; Ship semantics
+  pinned; FighterBay/BomberBay rename; cross-entity helpers declared;
+  constants pinned.
+- **Section 9 (medium, 7/9 resolved)** — `SpyDetection` semantic
+  documented and wired into D12.5; D9.7 placeholder added to
+  DECOMPOSITION.md; AIPipeline consumer documented; CombatStats.speed
+  marked cosmetic; REVIEW-NOTES 6.5 stale claim retired; trade-route
+  distance formula pinned; council-vote coupling flagged as
+  deliberate.
+- **Section 10 (low, 12/13 resolved)** — naming normalized (payload
+  fields, sideAId vs sideA); missing D1.2 fields added; `Player.score`
+  wording reconciled; `aiDefaultStrategy` first-match-wins documented;
+  `BuildingKind.cost` corrected; mission duration table in D1.1;
+  colonization loop added (D8.6); REVIEW-NOTES 6.3 stale count retired.
+
+### Still open (deferred to Phase 2 spec work)
+
+- **9.1 Per-pair starting relations (4.2 — still open)** — the 10×10
+  matrix is deferred to spec phase. D11.1 Quint spec can't be
+  testable without it. *Owner: D11.1 spec phase. Will pin during the
+  D11 implementation.*
+- **9.3 AI scoring heuristics (4.18 — still open)** — `value =
+  immediate_benefit × race_modifier` with no values pinned. *Owner:
+  D13.6/D13.7 spec phase. Tests will pin the coefficients when the
+  AI command-evaluator is written.*
+
+(The remaining "stale-finding" items 6.3/6.5/10.9 are *retired* —
+the original numbers were wrong and the underlying reconciliation
+tasks they described were addressed by the round-3 resolutions.)
+
+### Section 7 — 10 history (kept for traceability)
+
+The full finding text from the initial round-3 review is preserved
+in `git log --follow docs/REVIEW-NOTES.md` (commit `879f84a`) for
+any future reviewer who wants to see the as-found wording.
+
+---
+
 ## How to use this document
 
 When you make changes that resolve a finding above:

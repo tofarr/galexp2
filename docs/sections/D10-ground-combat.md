@@ -136,7 +136,7 @@ defenderMorale = baseMorale(50)
                  - (defenderStrengthRatio < 1 ? 20 : 0) // hopeless defender penalty
 ```
 
-If the defender has `Subterranean` trait, they don't surrender until their garrison is fully eliminated (defensive advantage).
+If the defender has `Subterranean` trait, they don't surrender until their garrison is fully eliminated (defensive advantage). *The check is data-driven: D10.3 calls `hasTrait(state, defender, Subterranean)` rather than reading a special-case flag. The `GroundDefense(1)` modifier from D3.2's `traitModifiers(Subterranean)` is also applied to the defender's defense roll (separate effect).*
 
 **Attacker surrender**: not modeled in v1. If the invader is losing, they can choose to retreat via a command, which D10.5 handles as a draw (no conquest, no fleet loss, invader can move away).
 

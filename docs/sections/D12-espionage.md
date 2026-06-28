@@ -35,43 +35,36 @@ Five top-level chunks from `DECOMPOSITION.md`:
 
 ### D12.1 → Spy mission assignment
 
-A spy is a `Player` resource. Each player has zero or more spies; each spy has exactly one current mission (or is `Idle`).
+A spy is a `Player` resource. Each player has zero or more spies; each spy has exactly one current mission (or is `Idle`). *Spy and Mission records live in D1.2 (`Spy`, `Mission`) — D12.1 only defines the mission-kind ADT and the assignment logic.*
 
 ```
-type Spy = {
-  id: SpyId,
-  owner: PlayerId,
-  skill: int,                   // 1..10, increases with experience
-  status: SpyStatus,            // Idle | OnMission(mission: SpyMission) | Captured | Killed
-}
-
-type MissionType =
+// Mission.kind ADT — payload is target-specific (defined in D12.1, *not* in D1.2):
+type MissionKind =
   | StealTech(target: PlayerId)
   | ObserveFleet(target: PlayerId, atStar: StarId)
   | ObserveTreasury(target: PlayerId)
   | SabotageBuilding(target: PlayerId, planet: PlanetId, building: BuildingKind)
-  | SabotageShip(target: PlayerId, star: StarId, shipIndex: int)
+  | SabotageShip(target: PlayerId, star: StarId, shipDesignId: ShipDesignId, count: int)
   | AssassinateLeader(target: PlayerId)
-
-type SpyMission = {
-  id: MissionId,
-  spy: SpyId,
-  type: MissionType,
-  assignedTurn: int,
-  progressTurns: int,           // how many turns spent so far
-  difficulty: int,              // computed at assignment time
-}
+  | CounterEspionage(target: PlayerId, locationPlanet: PlanetId)
 ```
 
-**Assignment command**: `AssignMission(playerId, spyId, type)` validates that the spy is `Idle`, then sets its status to `OnMission(mission)`. Difficulty is computed from the target's tech level and counter-espionage skill:
+Records (declared in D1.2):
 
 ```
-difficulty = baseDifficulty(missionType)
+Spy    = { id, ownerId, skill, locationPlanetId, status, detectionRisk }
+Mission = { id, spyId, kind, targetPlayerId, assignedTurn, progressTurns, difficulty }
+```
+
+**Assignment command**: `AssignMission(playerId, spyId, kind)` validates that the spy is `Idle`, then sets its status to `OnMission(missionId)` (referencing a new `Mission` record by id). Difficulty is computed from the target's tech level and counter-espionage skill:
+
+```
+difficulty = baseDifficulty(missionKind)
              + target.counterEspionageSkill
              - spy.skill * 2
 ```
 
-**Spy production**: each `IntelligenceCenter` building on any planet produces 1 spy per `SPY_PRODUCTION_INTERVAL = 10` turns (D1.1 constant). Spies start at `skill = 3`.
+**Spy production**: each `IntelligenceCenter` building on any planet produces 1 spy per `SPY_PRODUCTION_INTERVAL = 10` turns (D1.1 constant). Spies start at `skill = 3`. The production tick emits `SpyProducedEvent { player, spy, locationPlanet }`.
 
 ### D12.2 → Mission resolution
 
@@ -97,7 +90,7 @@ successChance = max(5%, min(95%, 50% + (spy.skill - difficulty) * 5%))
 detectionChance = max(5%, min(95%, counterEspionageSkill(target) - spy.skill * 3%))
 ```
 
-**Mission duration**: most missions resolve in 1 turn. StealTech takes 3 turns (more risky = harder to get intel without being caught).
+**Mission duration**: defined by the `duration(missionKind)` table in D1.1 (constants `DURATION_STEAL_TECH = 3`, all other mission kinds = 1 turn). StealTech is longer because it's riskier (you have to root through the target's archives).
 
 Outcomes:
 - **Success + undetected**: produce intel or sabotage; spy returns to `Idle`, gains `+1 skill` (up to 10).
@@ -175,8 +168,17 @@ counterEspionageSkill(player) =
   + min(5, sumOfEnemySpyAttempts)                                        // recent attempts sharpen awareness
 ```
 
+The detection chance (D12.2) applies the *defending* player's `SpyDetection` trait modifier as a multiplier on top of the skill-derived base. Per D3.2's `SpyDetection` semantic, this multiplier is applied to the **defending** player's detection: a `Stealthy` defending player (1.0/0.85 = 1.18× defensive boost makes them *worse* per the inverted MoO semantic; a non-Stealthy defending player at 1.0 is neutral).
+
+```
+detectionChance = clamp(0.05, 0.95,
+    (counterEspionageSkill(target) - spy.skill * 3%)
+    * totalModifiers(targetPlayer.race).spyDetection
+)
+```
+
 The skill is used in:
-- Detection chance (D12.2's detection roll).
+- Detection chance (D12.2's detection roll, as above).
 - Difficulty of incoming missions (D12.1's difficulty calculation).
 
 When a spy is detected and captured:
