@@ -141,8 +141,9 @@ Per-section doc: [`sections/D7-ship-design.md`](sections/D7-ship-design.md). Fiv
 - D8.4 Arrival & encounter detection — when a fleet arrives at a star, detect contact.
 - D8.5 Fleet merge & split.
 - D8.6 Colonization — added in v1 (see REVIEW-NOTES 10.12); a fleet with a Colony Ship arriving at an uninhabited planet claims it.
+- D8.7 Retreat destination helper — `pickRetreatDestination(fleet, state, rng)` shared by D9.5.4 and D10.5; nearest star in warp range, ties random.
 
-Per-section doc: [`sections/D8-fleet-movement.md`](sections/D8-fleet-movement.md). Five Quint files: `orders.qnt`, `movement.qnt`, `fleetOps.qnt`, `arrival.qnt`, `colonization.qnt`. D8.2 reframed as "distance & range" (Euclidean warp in v1; warp lanes deferred to v2). D8.4 enforces "one fleet per player-side at each star" before emitting Encounter events to D9 — D9 only ever sees pairwise encounters. D8.6 was added to close the in-game colonization loop (homeworlds are D3.5's job; everything else is D8.6's).
+Per-section doc: [`sections/D8-fleet-movement.md`](sections/D8-fleet-movement.md). Six Quint files: `orders.qnt`, `movement.qnt`, `fleetOps.qnt`, `arrival.qnt`, `colonization.qnt`, `retreat.qnt`. D8.2 reframed as "distance & range" (Euclidean warp in v1; warp lanes deferred to v2). D8.4 enforces "one fleet per player-side at each star" before emitting Encounter events to D9 — D9 only ever sees pairwise encounters. D8.6 was added to close the in-game colonization loop (homeworlds are D3.5's job; everything else is D8.6's). D8.7 was added so D9 and D10 share a single retreat-destination algorithm.
 
 ---
 

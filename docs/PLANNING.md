@@ -217,12 +217,31 @@ Decisions get appended here with date and short rationale. Full reasoning lives 
 | 2026-06-05 | D13.1: `AIInput.intelLedger` clarified as `playerState.intelLedger[self]` (the single `PlayerIntel` value, not the full map) | REVIEW-NOTES — D13.1's reference could be read either way; clarified |
 | 2026-06-05 | D14: tie-break note — council vote uses `state.score[player]` directly; v2 may separate `voteCount` from end-of-game `score` for balance; for v1 the coupling is *deliberate* and acceptable | REVIEW-NOTES 9.2 — implicit balance choice now explicit |
 | 2026-06-05 | REVIEW-NOTES.md: Section 7 (critical), Section 8 (high), Section 9 (medium), Section 10 (low) findings either resolved or annotated with cross-references. Section 9 items 9.1/9.3 remain open (per-pair starting relations, AI scoring heuristics) | REVIEW-NOTES round 3 |
+| 2026-06-05 | D4: new helper `applyTreatyTransfers` runs between `research` (D6) and `production` (D5.7); owns the 50/50 research-agreement split and reads `Player.researchAccumulated` post-D6.3 deduction. Splits the split out of D5.5 (where it collided with the phase order — economy runs before research, so D5.5 couldn't read D6.3's post-deduction state) | Review B1: research-agreement ordering |
+| 2026-06-05 | D4: new helper `recomputeScore` runs between `production` (D5.7) and `fleetMovement` (D8.3); writes `state.score[player]` from D14.4's pure `computeScore`. Both D11.5 council votes and D14.4 endgame reads this cached value | Review B5: where score recompute lives |
+| 2026-06-05 | D1.1: `RESEARCH_AGREEMENT_RATE = 0.5` pinned | Review B1 follow-up |
+| 2026-06-05 | D1.1: `BC_PER_TAX_POINT` removed (was unreferenced; `PLANET_BASE_TAX_INCOME` is the v1 scale) | Review B8 |
+| 2026-06-05 | D1.2: `Player.battlesWon` and `Player.battlesLost` fields added (maintained by D9.6.5, read by D14.5) — replaces D14.5's event-log scan, which broke after `MAX_EVENTS_IN_MEMORY = 200` trimmed older events | Review B4 |
+| 2026-06-05 | D1.2: `Planet.buildFleetId: Option<FleetId>` field added; D5.7 lazily creates the build fleet on first ship completion | Review B16 |
+| 2026-06-05 | D5.3: industry-cap on `Native`/`Artifact` planets is `specials.contains(Native \| Artifact)`, independent of `owner`; colonizing a Native planet does not remove the cap | Review B2 |
+| 2026-06-05 | D5.5: tax slider semantics pinned as one knob controlling both per-planet base tax income AND the gross-research→bc conversion rate; trade income is independent of `taxRate` | Review B18 |
+| 2026-06-05 | D5.6: `recentlyConquered(state, planet)` helper explicitly defined in terms of `Planet.conqueredOnTurn` and `RECENTLY_CONQUERED_TURNS = 5` | Review B19 |
+| 2026-06-05 | D4: phase numbering renamed — `7b. groundCombat` is now phase 8 (renumbered to leave room for the new helpers at 3a and 4a) | Review B21 |
+| 2026-06-05 | D6: `techLevel(player, tree)` cross-entity helper defined; consumed by D11.6 trade-income formula and D12.5 counter-espionage | Review B10 |
+| 2026-06-05 | D6: currency model pinned — `Player.treasury` (bc, modified by D5.5 / D11 transfers) and `Player.researchAccumulated` (research points, modified by D6.3 / D4 `applyTreatyTransfers`) are distinct currencies; research is never paid in bc | Review B17 |
+| 2026-06-05 | D8: `D8.7 pickRetreatDestination(fleet, state, rng)` helper added — single source of truth for retreat-destination algorithm; shared by D9.5.4 (space-combat retreat) and D10.5 (invasion retreat) | Review B12 |
+| 2026-06-05 | D8.1: split-order validation text now says "more design slots" instead of "more ships" (v1 splits whole slots only) | Review B15 |
+| 2026-06-05 | D8.3: ETA-locked rule's meta-note ("previous draft said the opposite") removed — the rule is now stable across sections | Review B20 |
+| 2026-06-05 | D9.1.2: per-ship initiative vs. per-stack HP spelled out — stacks absorb damage until `hpCurrent == 0` then are destroyed; within a stack, ships fire in insertion order | Review B9 |
+| 2026-06-05 | D11.5: council detection is `state.turn > 0 and state.turn % COUNCIL_INTERVAL == 0` — turn 0 is skipped (no relations or scores exist) | Review B3 (REVIEW-NOTES 4.7) |
+| 2026-06-05 | D13.7: AI pipeline uses an explicit pre-step snapshot; threat ranking is computed once against the snapshot, not recomputed between AIs. AIs never see each other's mid-batch decisions | Review B6 / B11 |
+| 2026-06-05 | D14: `checkAllVictories` resolution order is D14.1 → D14.2 → D14.3 → D14.4 — first match wins on simultaneous victories; ties at MAX_TURN are draws | Review B13 |
+| 2026-06-05 | D3.2: documented the trait-flag pattern — traits like `Subterranean` and `Lithovore` carry a `Modifier` set *and* a separate data-driven check via `hasTrait(state, ..., Trait)`. Intentional; v2 may move flag-style effects into a `TraitFlag` enum | Review B7 |
 
 ## Open questions
 
-Open questions live in two places:
+Open questions live in per-section "Open questions" sections in each `docs/sections/D<n>-*.md` (resolved ones are flagged with `**Resolved v1:**`).
 
-1. **Per-section "Open questions" sections** in each `docs/sections/D<n>-*.md` (resolved ones are flagged with `**Resolved v1:**`).
-2. **`docs/REVIEW-NOTES.md`** — a running audit of inconsistencies and cross-section gaps discovered during review. The PR for each pass of fixes converts the relevant entries from REVIEW-NOTES.md into the decision log above and removes them from the notes file.
+The earlier "two places" pointer (this file + REVIEW-NOTES.md) is superseded: REVIEW-NOTES.md was the 2026-06-05 audit trail and is now historical. All findings from the audit have been converted into decision-log entries here or resolved in the per-section docs. The audit document itself remains in `docs/REVIEW-NOTES.md` for traceability but is no longer the active source of truth.
 
-Earlier versions of this section pointed at "the chat conversation"; that pointer is now superseded because the decisions are now tracked in version control (PLANNING.md + REVIEW-NOTES.md + per-section Open questions) and not in chat.
+The earlier "earlier versions of this section pointed at the chat conversation" pointer is also superseded — decisions live in version control (PLANNING.md + per-section docs), not chat.

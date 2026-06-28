@@ -108,7 +108,7 @@ Each treaty has effects:
 - **Alliance**: mutual defense obligation. If either is attacked, the other declares war on the aggressor automatically. +20 relation.
 - **PeaceTreaty**: ends war; restores AtPeace; -25 relation if forced (conquest-driven).
 - **Subjugation**: vassal is automatically set to `AtWar` with any suzerain's enemy; vassal cannot independently declare war; vassal pays 10% of gross income to suzerain each turn (applied as a maintenance line in D5.5). v2 could add suzerain diplomacy on behalf of vassals.
-- **ResearchAgreement**: each player gets 50% of the other's *unspent* research. Transfer is applied as a maintenance line in D5.5 *after* D6.3 has deducted the cost of any tech-acquired this turn (so the total is conserved — "unspent" here means "the leftover after D6.3's deduction"). The two phrasings ("unspent" in D11.2 vs "after tech-acquisition deduction" in D5.5) describe the same operation; D5.5 is the precise one.
+- **ResearchAgreement**: each player gets 50% of the other's *unspent* research. The split runs in D4's `applyTreatyTransfers` helper, which sits between D6 (research) and D5.7 (production) and reads `Player.researchAccumulated` *after* D6.3 has deducted the cost of any tech acquired this turn. The source side's `researchAccumulated` is decremented by the transferred amount; the receiving side's `treasury` is incremented by the same amount (the research is converted to bc at a 1:1 rate). Total conserved. The split rate is pinned at `RESEARCH_AGREEMENT_RATE = 0.5` (D1.1).
 
 **Subjugation**: v1 includes basic vassal mechanics with the above mechanical effects. v2 could add suzerain diplomacy on behalf of vassals and diplomatic-relation rules for subjugated races.
 
@@ -181,7 +181,7 @@ For `DeclareWar`: unilateral; no acceptance needed. Just sets `warState = AtWar(
 
 ### D11.5 → Council / Galactic Emperor
 
-The Galactic Council meets every `COUNCIL_INTERVAL = 25` turns (from D1.1 constants). The council turn is detected as `state.turn % COUNCIL_INTERVAL == 0` (turn 25, 50, 75, …). On council turn:
+The Galactic Council meets every `COUNCIL_INTERVAL = 25` turns (from D1.1 constants). The council turn is detected as `state.turn > 0 and state.turn % COUNCIL_INTERVAL == 0` (turn 25, 50, 75, …). **Turn 0 is skipped** — no relations or meaningful scores exist yet. On council turn:
 
 1. Compute each player's `voteCount` based on `state.score[player]` — the derived per-player score field on `GameState` (D1.3, D14.4). The score is recomputed once per turn by D4 between economy and victory, so D11.5 simply reads the cached value:
    ```
@@ -321,14 +321,14 @@ No top-level orchestrator — D4 calls each chunk in sequence: `applyRelationDri
 - **Relation score is `clamp(rawScore, -100, +100)`** after all modifiers.
 - **Relation score drifts toward 0** without contact (after 10 turns of no contact, drift at 1 point/turn starting at turn 11). Cooling relations is realistic.
 - **Wars end by peace treaty or total conquest.** No automatic surrender.
-- **Council every 25 turns** (turn 25, 50, 75, …), simple majority election. Council vote count reads from the derived `state.score` field (D1.3) computed once per turn by D14.4.
+- **Council every 25 turns** (turn 25, 50, 75, … — turn 0 is skipped), simple majority election. Council vote count reads from the derived `state.score` field (D1.3) computed once per turn by D14.4 (via D4's `recomputeScore` helper).
 - **Trade routes manual** — created by player command, not auto-generated.
 - **Trade income cached on `TradeRoute.income`** by D11.6; D5.5 reads the previous turn's cached value.
 - **Subjugation is mechanical in v1** — vassal auto-AtWar with suzerain's enemies, pays 10% tribute. No AI heuristic.
 - **Subjugation is one-way in v1** (no liberation mechanic).
 - **Trade Pact, NAP, Alliance all enable trade routes** (NAP enables at reduced income).
 - **Treaty breakage (e.g., attacking during NAP) adds 25 to `recentBetrayal`**, decaying slowly.
-- **Research agreement is a per-turn 50/50 split of unspent research**, applied as a maintenance line in D5.5 after D6.3.
+- **Research agreement is a per-turn 50/50 split of unspent research**, applied in D4's `applyTreatyTransfers` helper between D6 (research) and D5.7 (production).
 
 ## Open questions for D11
 

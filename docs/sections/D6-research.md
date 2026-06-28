@@ -168,7 +168,17 @@ D6.4 (acquireTech) ← reads D6.1, D1.2 (effects)  │
 D6.3 (research) ← reads D6.2, D6.4               ┘
 
 D6.5 (trade) ← reads D6.1, D6.4 (acquisition logic)
-```
+
+**Cross-entity helper** (declared here, consumed by D11.6 trade income and D12.5 counter-espionage):
+
+- **`techLevel(player, tree) -> int`** — `|{tech : player.techs | techCatalog[tech].tree == tree}|`. The count of techs the player has researched in the given tree. Used by `techLevelBonus` in D11.6 (`1.0 + 0.10 × techLevel(player, Computer)`) and D12.5's counter-espionage formula.
+
+**Currency model (locked in for v1)**: there are two distinct currencies on `Player`:
+
+- **`treasury`** (bc): spent by D5.7 for building costs (the *industry* value of queue items is computed from industry, not bc, but the cost is converted to bc for display and AI heuristics); modified by D5.5 net income, D5.7 ship completion (no, ships pay for themselves via industry), and D11 diplomatic transfers (subjugation tribute, research-agreement split). Never consumed by D6 — research has no bc cost.
+- **`researchAccumulated`** (research points): incremented by D6.3 from `grossResearch` (D5.4); consumed by D6.3 when a tech acquisition exceeds the cost; reset to 0 when the player switches research; partially drained by D4's `applyTreatyTransfers` (the 50/50 split converts unspent research points to bc at a 1:1 rate on the receiving side).
+
+**Switching research** discards any remaining `researchAccumulated` (MoO behavior; v1 matches). v2 may allow partial carry-over.
 
 Linear with D6.5 as a side branch that imports D6.4's acquisition helper.
 

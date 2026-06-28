@@ -34,6 +34,7 @@ Five top-level chunks lifted from `DECOMPOSITION.md` (D8.2 reframed):
 - **D8.4 Arrival & encounter detection** — auto-merge same-owner fleets at each star; pair sides for D9.
 - **D8.5 Fleet merge & split** — pure operations on fleet records (used by D8.4 and player commands).
 - **D8.6 Colonization** (added in v1 to address REVIEW-NOTES 10.12) — when a fleet with a Colony Ship (`Hull.Colony Ship` or any ship with `Special.ColonyModule`) and ≥1 colonist reaches an *uninhabited* planet at a star with no other fleet, the planet's `owner` flips to the player's id, `population` is seeded to `INITIAL_POPULATION`, and `PlanetColonizedEvent` is emitted. If multiple colonizers arrive at the same planet in the same turn, the first-arriving fleet claims it.
+- **D8.7 Retreat destination helper** — `pickRetreatDestination(fleet, state, rng) -> StarId`. Pure function shared by D9.5.4 (space-combat retreat) and D10.5 (invasion retreat). Selects the nearest star in `state.stars` whose Euclidean distance from the fleet's current star is `≤ fleet.warpRange`; ties broken randomly via the deterministic `ctx.rng`. Returns the chosen `StarId`; the caller (D9 or D10) emits a `RetreatOrder { fleet, destination }` event. If no star is in range, returns `None` (the fleet is destroyed).
 
 ## Recursive decomposition
 
@@ -55,7 +56,7 @@ Validation (D8.1's pure function): `validateOrder(order, state) -> Result<Unit, 
 
 Rules:
 - `MoveTo`: destination is known; fleet is currently `AtStar` (not already in transit).
-- `Split`: fleet has more ships than the requested split (must leave ≥1 ship in each result); new fleet id is unused.
+- `Split`: fleet has more *design slots* than the requested split (must leave ≥1 slot in each result); new fleet id is unused. v1 splits only by whole slots — partial-count splits from a single design are not supported.
 - `SetStance`: always valid.
 - `CancelOrder`: only valid for fleets in transit (no-op for fleets at a star).
 
@@ -90,7 +91,7 @@ Pure function: `advanceFleets(state, currentTurn) -> (newState, arrivedEvents)`.
 For each fleet with `location = InTransit({ from, to, eta })`:
 - If `currentTurn >= eta`, set `location = AtStar(to)` and emit `ArrivedEvent { fleet, at: to, onTurn: currentTurn }`.
 
-ETA is **locked at order issue**: range upgrades during transit do not change an in-flight fleet's arrival turn. (A previous draft of this section said the opposite; that was an error — ETA recompute is deferred to v2.)
+ETA is **locked at order issue**: range upgrades during transit do not change an in-flight fleet's arrival turn. ETA recompute is deferred to v2.
 
 That's it for v1. v2 adds:
 - Mid-transit rerouting (player changes destination mid-flight).
@@ -200,8 +201,9 @@ Four Quint files, no top-level orchestrator (D4 calls D8.3 then D8.4 in sequence
 | `specs/fleet/movement.qnt` | D8.2 + D8.3 | `src/domain/fleet/movement.ts` | ~120 |
 | `specs/fleet/fleetOps.qnt` | D8.5 | `src/domain/fleet/fleetOps.ts` | ~100 |
 | `specs/fleet/arrival.qnt` | D8.4 | `src/domain/fleet/arrival.ts` | ~150 |
+| `specs/fleet/retreat.qnt` | D8.7 | `src/domain/fleet/retreat.ts` | ~50 |
 
-Total ~470 lines of Quint.
+Total ~520 lines of Quint.
 
 `arrival.qnt` is the biggest because it contains the auto-merge + side-pairing logic. It's the file D9 depends on most heavily.
 
@@ -225,6 +227,7 @@ Total ~470 lines of Quint.
 - **Random shuffling takes `rng: () => number` as a parameter** (per Architecture Principle 1 — no `Math.random()`).
 - **ETA is locked at order issue.** Range upgrades during transit do not change arrival turn. v2 may add range-upgrade ETA recompute.
 - **Stance is reserved data in v1.** D9 does not read stance in v1; D9.2 consumes it in v2.
+- **D8.7 retreat helper** — shared by D9.5.4 (space-combat retreat) and D10.5 (invasion retreat). Single source of truth for retreat-destination algorithm.
 
 ## Open questions for D8
 

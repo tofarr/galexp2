@@ -115,6 +115,13 @@ type Modifier =
 
 **Important distinction**: race *modifiers* (this list) are distinct from *building effects* (D1.2's `BuildingEffect` ADT) and *planet properties* (e.g., `Planet.garrison`, `Planet.specials`). Consumers pattern-match on whichever ADT carries the data they need. For example, "food production" is a race multiplier from D3.2's `FoodProduction` *plus* a sum of building `FoodOutput` effects from D1.2 — never both in one place.
 
+**Trait-flag pattern**: Some traits carry a `Modifier` set (the common case) *and* an additional data-driven check on the trait itself. For example:
+
+- `Subterranean` carries `Modifier.{Morale(1), GroundDefense(1)}` *and* the trait value is checked directly by D10.3 (`hasTrait(state, defender, Subterranean)`) to skip the surrender check.
+- `Lithovore` carries `Modifier.{GrowthMod(1.0)}` *and* is checked directly by D5.1 (`hasTrait(state, race, Lithovore)`) to skip starvation when food is negative.
+
+This pattern (Modifier for numeric tuning, `hasTrait` for on/off behavioral switches) is intentional. v1 keeps it; v2 could move flag-style effects into a `TraitFlag` enum if the pattern proliferates.
+
 Each `Trait` value has a fixed list of modifiers, defined once in the spec:
 
 ```

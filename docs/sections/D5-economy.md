@@ -101,7 +101,7 @@ industryProduction = Σ(building.baseEffect)
                      × (morale / 100)    // low morale hurts production
 ```
 
-If the planet is `Native` or `Artifact`, the industry is capped (natives/artifacts resist colonization-industry). v1: capped at 50% until colonized (no native resistance after colonization).
+If the planet's `specials` set contains `Native` or `Artifact`, industry is capped at 50% (natives/artifacts resist colonization-industry). The cap persists for as long as the special is present on the planet — colonizing a Native planet (D8.6) does *not* remove the `Native` special, so the cap applies to both pre- and post-colonization Native/Artifact planets. The cap condition is purely `specials.contains(Native | Artifact)`, independent of `owner`.
 
 Emits: optional `IndustryProductionEvent`.
 
@@ -147,13 +147,15 @@ netIncome = grossIncome - maintenance
 
 **Subjugation tribute** (D11): if player A is subjugated to player B, 10% of A's gross income is transferred to B each turn as a maintenance line. Mechanism: `subjugationTribute(player) = 0.10 × grossIncome(player)` if `player` has a suzerain.
 
-**Research agreement transfer** (D11): if A and B have a research agreement, the gross research each generates in D5.4 is split 50/50 between them after D6.3 has deducted the cost of any tech-acquired this turn. The transfer is applied **inside D5.5** as a maintenance line for the paying side and a positive line for the receiving side (so the total is conserved). This is the implementation chunk for the research-agreement mechanism — D11's chunk list does not add a new section for it; D5.5 reads the treaties map and applies the transfer inline. See the PLANNING.md decision log (2026-06-05 entry on D11.6→D5.5 caching and the 2026-06-05 entry on the 50/50 split) for the rationale.
+**Research agreement transfer** (D11): if A and B have a research agreement, the unspent research each carries at the end of the research phase is split 50/50 between them. "Unspent" = `player.researchAccumulated` *after* D6.3 has deducted the cost of any tech acquired this turn. The split runs in a new **D4 helper `applyTreatyTransfers`** that D4 invokes immediately after `research` (D6) and before `production` (D5.7). The helper writes both sides' `treasury` and `researchAccumulated` so the total is conserved (the paying side's `treasury` is reduced; the receiving side's is increased). This is the implementation chunk for the research-agreement mechanism — D11's chunk list does not add a new section for it; the D4 helper reads the treaties map and applies the transfer inline. See the PLANNING.md decision log (2026-06-05 entry on the research-agreement ordering fix) for the rationale.
 
 Tax slider semantics:
 - `taxRate ∈ [0, 100]`. Default 30.
 - `taxRate = 0`: 0 income from research; full research points.
 - `taxRate = 100`: all research → income; no research.
 - High `taxRate` reduces `morale` (D5.6 reads `taxRate` as a penalty).
+
+The `taxRate` slider controls **two distinct economic effects in one knob**: (1) per-planet base tax income (`PLANET_BASE_TAX_INCOME × taxRate/100`) and (2) the gross-research → bc conversion rate (`floor(grossResearch × taxRate/100)` becomes bc; the rest stays as research). Players trade research progress for short-term cash by raising tax. Trade income is independent of `taxRate`.
 
 The function updates `player.treasury += netIncome` and emits `IncomeEvent { player, gross, maintenance, net, treasury }`.
 
@@ -173,7 +175,7 @@ modifiers = sum([
     -highTaxes(player.taxRate),                                       // 0..-20 if taxRate > 60
     -debtPenalty(player.treasury),                                    // 0..-20 if treasury < 0
     +homeworldBonus(planet, player),                                  // +10 if this is the homeworld
-    +recentlyConquered(planet),                                       // -20 if conquered last 5 turns (revolt risk)
+    +recentlyConquered(state, planet),                                // -20 if conquered in the last RECENTLY_CONQUERED_TURNS turns (0 otherwise)
 ])
 
 morale = clamp(baseMorale + modifiers, 0, 100)
@@ -210,8 +212,7 @@ else:
 - `BuildBuilding(kind)` → `state.buildings[kind].baseCost × BUILDING_LEVEL_MULTIPLIER(state.buildings[kind].level) × count` where `count` defaults to 1 (the v1 cost formula from D1.1). The `level` field on `Building` is `1` for new builds.
 - `BuildShip(designId, count)` → `count × design(state, designId).cost` (`CombatStats.cost` from D7.5).
 
-The completed ship is added to a designated build fleet at the planet
-(creating it if it doesn't exist; ownership is the player).
+The completed ship is added to a **build fleet** at the planet. Each owned planet carries a `Planet.buildFleetId: Option<FleetId>` field (D1.2) — D5.7 creates a build fleet lazily on the first ship completion (assigning it the player as owner, `AtStar(planet.starId)` location, empty ships), stores the new `FleetId` on `Planet.buildFleetId`, and appends completed ships to that fleet. Subsequent completions append to the same fleet. If the planet is unowned (`owner == None`) when D5.7 tries to emit a ship, the completion is dropped and a `BuildFailedEvent { planet, reason: "unowned planet" }` is emitted — this shouldn't happen in normal play (a queue can only be set on an owned planet) but guards against desync.
 
 If `availableIndustry < cost`, the item stays in the queue with
 accumulated progress (progress is preserved across turns until either
@@ -245,7 +246,7 @@ Linear, with D5.6 (morale) feeding into D5.3 (industry) and D5.1 (population) �
 | D1 Core Types | `Planet`, `Player`, `Race`, `Building`, `BuildingKind`, `TradeRoute`, `Spy`, `Fleet`, `Modifier` | D1.2 |
 | D2 Galaxy Generation | `Planet.specials` (Native, Artifact affect production) | D2.5 |
 | D3 Races & Traits | `race.totalModifiers`, `race.techAffinity` | D3.2, D3.3 |
-| D6 Research | (no import — D5.4 reads `Player.currentResearch` set by D6) | D6 |
+| D6 Research | (no import — D5.4 reads `Player.currentResearch` set by D6; D4's `applyTreatyTransfers` helper reads `Player.researchAccumulated` post-D6.3 for research-agreement splits) | D6 |
 | D7 Ship Design | `Hull.baseCost`, `ShipDesign.cost` (= `CombatStats.cost`) for queue cost | D7.5 |
 | D11 Diplomacy | `TradeRoute` income (read-only) | D11 |
 | D13 AI | (no import — D13 sets the queue contents, D5.7 executes them) | D13 |
@@ -257,7 +258,7 @@ D5 has the most dependencies of any single domain section (after D4).
 | D4 Turn Cycle | Calls D5 once per turn |
 | D6 Research | Reads `grossResearch` from D5.4 (already in `Player.researchThisTurn`) |
 | D9 Space Combat | Reads `Fleet.supplyCost` from D5.5 (no direct call) |
-| D14 Victory | Reads `Player.treasury` for score (production is not in the v1 score formula — see REVIEW-NOTES 6.7/8.3; if v2 adds production, it would read the per-turn gross via `state.score` after D4's recompute) |
+| D14 Victory | Reads `Player.treasury` for score (production is not in the v1 score formula; v2 may add it via D4's `recomputeScore` helper) |
 | A1 Store | Calls D5 chunks |
 | P4 Planet Screen | Displays D5 outputs (food/industry/research/morale) |
 | P5 Research Screen | Reads research progress (D6 ultimately) |
@@ -306,7 +307,7 @@ We split D5.2 and D5.3 into one file because they share the per-planet productio
 - **Lithovore ignores food** (no starvation, but no growth bonus either).
 - **Trade income is cached on `TradeRoute.income` by D11.6** at end of turn; D5.5 reads the previous turn's cached value.
 - **Subjugation tribute (10% of gross income to suzerain)** is applied as a maintenance line in D5.5.
-- **Research agreement transfers (50/50 split)** happen between D6.3 and D5.5 in the same turn.
+- **Research agreement transfers (50/50 split)** run in D4's `applyTreatyTransfers` helper, between `research` (D6) and `production` (D5.7) in the same turn.
 
 ## Open questions for D5
 
