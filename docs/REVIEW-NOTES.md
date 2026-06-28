@@ -158,6 +158,171 @@ Phase 2 (Quint specs) or in a follow-up docs review:
 
 ---
 
+## Round 3 — additional findings (2026-06-05)
+
+A third docs-review pass over the full D-layer surfaced the findings
+below. They were not present in the resolved list above nor in the
+"Still open" 4.x/5.x/6.x sections, and they should be addressed in a
+follow-up docs review PR or during Phase 2 spec work.
+
+### Section 7 (critical)
+
+- **7.1 D5 orchestrator order contradicts D5.3's morale dependency**
+  — D5.2+D5.3+D5.4 run before D5.6 (morale), but D5.3's formula scales
+  industry by `morale/100`. The first pass silently uses the previous
+  turn's morale. Reorder (`D5.6` before `D5.2/3/4`) or document the
+  one-turn lag. **Must be resolved before D5 spec work.**
+
+### Section 8 (high — missing fields/types referenced but not defined)
+
+- **8.1 `Player.aiMemory`** — referenced by D13 (`docs/sections/D13-ai-decisions.md:277`
+  says "stored on `Player.aiMemory`"), not declared on D1.2's `Player`.
+  Add the field or move ownership to `GameState` keyed by `PlayerId`.
+- **8.2 `Player.intelLedger`** — referenced by D12 (`Player.intelLedger:
+  Map<PlayerId, PlayerIntel>`, `docs/sections/D12-espionage.md:132`) and
+  used in D13.1's `AIInput`. Not on D1.2's `Player`. Add the field.
+- **8.3 `Player.totalProduction`** — referenced by D5 (`docs/sections/D5-economy.md:258, 263`)
+  as a D14 / P12 dependency, not on D1.2's `Player`, not in D14.4's
+  formula. (Also captured in 6.7.) Either drop the dependency or add
+  production to the score formula.
+- **8.4 `Spy` record defined twice with mismatched fields** — D1.2 has
+  `{id, ownerId, locationPlanetId, mission, detectionRisk}`; D12.1 has
+  `{id, owner, skill, status}`. Consolidate into D1.2 and add the
+  missing fields, or have D12 reference D1.2's shape.
+- **8.5 `Mission` vs `SpyMission` / `MissionType` duplication** — D1.2
+  says `Mission — kind, targetPlayerId, startedOnTurn`. D12.1 says
+  `MissionType` is a richer sum type and `SpyMission = {id, spy, type,
+  assignedTurn, progressTurns, difficulty}`. Pick one.
+- **8.6 `TURN_WARNING_THRESHOLD` constant** — referenced by D4.2 with a
+  placeholder "e.g., 10". Not in D1.1's constants list. Pin.
+- **8.7 `TAX_RATE_MIN` / `TAX_RATE_MAX` / `TAX_RATE_DEFAULT` constants**
+  — D5.5 says `taxRate ∈ [0, 100]`, default 30; D5.6 reads `if
+  taxRate > 60`. None are in D1.1.
+- **8.8 `homeworldBonus()` function** — used in D5.6
+  (`docs/sections/D5-economy.md:173`) but not declared anywhere.
+  Likely a one-liner (`planet.id == player.homeworldPlanetId ? +10 : 0`)
+  in D1.2 or a small helper in D5.
+- **8.9 `Building` has no `level` field but cost formula uses one** —
+  D5.7's `~10 bc × level` cost formula has no operand. Either add
+  `level: int` to D1.2's `Building` and a `levelMultiplier(level)`
+  function, or pin the cost as a flat value per `BuildingKind`.
+- **8.10 `Ship` semantic ambiguity** — D1.2 has `count` and
+  `hp (current/max)`; D8.5 split uses stack semantics (`ships:
+  List<{designId, count}>`); D9.3.2 talks about "remaining-hp-fraction
+  per ship". Either make `Ship` per-individual (no `count`) or
+  per-stack (and pin HP semantics at the stack level). Foundational for
+  D7.5, D8.5, D9, D10.
+- **8.11 `CombatEvent` vs `Event` overlap not reconciled** — D1.2
+  declares `CombatEvent` as a separate type but D1's event-kind index
+  lists `CombatHit/CombatMiss/CombatCrit/ShipDestroyed/Retreat` as
+  `Event` variants. Pick one or document the layering clearly.
+- **8.12 `Hull.Fighter` / `Weapon.Fighter` naming overlap** — D7.1
+  lists `Fighter`/`Bomber` as hulls; D7.2 lists the same names as
+  `WeaponKind` values. Standard 4X distinguishes hull from fighter-bay.
+  Rename one (e.g., `Weapon.FighterBay`) or document.
+- **8.13 D3.2 trait table gaps: `Tolerant` missing, `HyperExpansion`
+  is dead code** — D3.1 lists 16 unique traits; D3.2's `traitModifiers`
+  table covers 15 but omits `Tolerant`. D3.2 defines `HyperExpansion`
+  but no race in D3.1 has it.
+- **8.14 `Subterranean` "no surrender until fully eliminated" not
+  expressed in D3.2** — D10 (`docs/sections/D10-ground-combat.md:272`)
+  claims this is driven by `GroundDefense(1)` from D3.2's `Modifier`
+  ADT, but D3.2's `traitModifiers(Subterranean) = { Morale(1) }` has no
+  `GroundDefense(1)` and no surrender-suppression variant. Either
+  update D3.2 or document D10.3's hard-coded special case.
+- **8.15 `MaxColonies` and `ColonizationSpeed` modifiers defined but
+  unused** — D3.2 declares them but no section reads them (D5.1,
+  D3.5, D13). Remove from the ADT or declare the consumer.
+
+### Section 9 (medium — open decisions)
+
+- **9.1 Per-pair starting relations (4.2 — still open)** — the 10×10
+  matrix is deferred to spec phase. D11.1 Quint spec can't be
+  testable without it.
+- **9.2 Council vote uses `state.score` which includes treasury** —
+  D14's resolved decision (`docs/sections/D14-victory.md:220`)
+  acknowledges this is "acceptable for v1" but invites v2 separation.
+  Worth modeling deliberately or flagging as intentional.
+- **9.3 AI scoring heuristics (4.18 — still open)** — `value =
+  immediate_benefit × race_modifier` with no values pinned.
+- **9.4 `D9.7` referenced but absent from DECOMPOSITION.md** — D9
+  reserves `D9.7` for boarding (D9-space-combat.md:66, 167, 178) but
+  DECOMPOSITION.md lists only D9.1–D9.6. Either add the v2 placeholder
+  to DECOMPOSITION.md or note in D9 that it's explicitly out of scope.
+- **9.5 `SpyDetection` modifier semantics ambiguous** — D3.2 says
+  "multiplier on detection chance (passive — 'easier to spot others'
+  spies')" but the `Stealthy` example says "passive: harder to detect
+  own spies" — opposite effect on the same axis. D12.5's detection
+  formula doesn't read `SpyDetection` at all, so the trait has no
+  effect under the current formula.
+- **9.6 `AIPipeline` event consumer unspecified** — listed in D1's
+  event-kind index; emitted by D13.7; no consumer description (P13
+  reads `AIOutput.reasoning` directly).
+- **9.7 Trade-route distance — undefined "parsec" / planet pair
+  function** — D11.6's `-1% per parsec` penalty is unspecified; planets
+  don't have coordinates, only stars do. Pin the distance function.
+  (Also captured in 4.6.)
+- **9.8 `CombatStats.speed` is purely cosmetic in v1** — D9.1.2 uses
+  computer + hull size for initiative (not `CombatStats.speed`); D8
+  says `Hull.baseSpeed` is "for fleet speed display; not used in v1
+  movement". Document explicitly.
+- **9.9 REVIEW-NOTES 6.5 stale: "FleetEvent defined twice"** —
+  couldn't reproduce; `FleetEvent` is defined only in D8.4. The
+  actual residual issue: D8.4's `FleetEvent` ADT is not in D1's
+  event-kind index. The 6.5 finding as written is stale; the
+  underlying reconciliation task is real.
+
+### Section 10 (low — wording / cross-references / cosmetics)
+
+- **10.1 `Player.totalFleetStrength` "computed view function" not
+  declared** — D1.2 mentions it as a view function but no such
+  function exists. Multiple sections read "fleet strength"; pin one
+  location (D7.5 is the natural home).
+- **10.2 Event payload naming inconsistency** —
+  `StarvationEvent {planet, lostPopulation}` (D5.1) vs
+  `PillageEvent {planet, populationLost, buildingsDamaged}` (D10.4).
+  Pick one word order.
+- **10.3 Event field suffix inconsistency** — D8.4's `FleetEvent`
+  uses `sideA: FleetId`; D1.2's `CombatEvent` uses `sideAId`. Standardize.
+- **10.4 `player.researchAccumulated` referenced by D6.3 but missing
+  from D1.2** — `docs/sections/D6-research.md:96-105` reads it; D1.2
+  `Player` doesn't list it. Add the field.
+- **10.5 `Player.score` ownership described three different ways** —
+  D1.2 says "score (derived; see D14.4)", D1.3 says
+  `score: PlayerId -> int` on `GameState`, D14.4 says "`Player.score`
+  is a derived field stored on `GameState`". Pick one phrasing.
+- **10.6 D13.1 strategy tie-breaking when hints are empty or
+  contradictory** — `aiDefaultStrategy(race)` priority list
+  (`docs/sections/D13-ai-decisions.md:80-84`) — what about
+  contradictory hints (e.g., race has both `Aggressive` and
+  `Diplomat`)? Document precedence.
+- **10.7 `BuildingKind.cost(kind)` static-method call doesn't match
+  the model** — D5.7 calls it; D1.2 has no such function. Should be
+  `state.buildings[kind].baseCost`.
+- **10.8 Mission durations scattered through prose, no table** —
+  StealTech is 3 turns; other missions are 1 turn. No
+  `duration(missionType)` table in D1.1.
+- **10.9 REVIEW-NOTES 6.3 stale: D9 chunk count is actually 26
+  sub-chunks** — D9 has 3+4+5+5+4+5 = 26 sub-chunks, not 18. The
+  underlying reconciliation task is real but the number is stale.
+- **10.10 `player.shipStatBonuses` referenced by D6.4 but missing
+  from D1.2** — `docs/sections/D6-research.md:138` reads it; D1.2
+  `Player` doesn't list it. Add the field.
+- **10.11 D11.2 vs D5.5 phrasing inconsistency for research-agreement
+  split** — "unspent research" vs "after tech-acquisition deduction".
+  Pick one.
+- **10.12 Colonization loop not defined (only homeworld assignment)** —
+  D3.5 handles the *initial* homeworld at game start. No section
+  describes in-game colonization: no `ColonizePlanet` event, no
+  colonization command, no `Planet.isColonized` flag, no
+  `MoveTo(uninhabitedPlanet)` flow.
+- **10.13 Events log trimming + persisted events re-merge path is
+  sketched, not specified** — D1.3 trims to last 200; D14.5 reads
+  persisted events for stats. The flush/load path is A2's job but no
+  section in scope describes it.
+
+---
+
 ## How to use this document
 
 When you make changes that resolve a finding above:
